@@ -48,7 +48,11 @@ Project on a daily basis and provide insights via Looker Studio dashboard.
 
 Please join this
 [Google Group](https://groups.google.com/g/shopping-insider-public) to gain the
-viewer access for some of the resources below. (i.e. templates, spreadsheets)
+viewer access for some of the resources below. (i.e. templates, spreadsheets).
+
+Once you click on the 'Join group' button you will *automatically* have immediate access to both templates (ie. there is no need to request access).
+
+<img src="images/access.png">
 
 #### Shopping Insider
 
