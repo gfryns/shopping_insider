@@ -65,10 +65,10 @@ AS (
       CASE
         WHEN PriceBenchmarks.price_benchmark_value IS NULL THEN ''
         WHEN (PriceBenchmarks.price_benchmark_value - Products.effective_price) < 0
-          THEN 'Less than price benchmark'
+          THEN 'Less than PB'
         WHEN (PriceBenchmarks.price_benchmark_value - Products.effective_price) > 0
-          THEN 'More than price benchmark'
-        ELSE 'Equal to price benchmark'
+          THEN 'More than PB'
+        ELSE 'Equal to PB'
         END AS price_competitiveness_band,
       SAFE_DIVIDE(Products.effective_price, PriceBenchmarks.price_benchmark_value) - 1
         AS price_vs_benchmark

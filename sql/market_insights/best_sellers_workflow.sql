@@ -20,33 +20,10 @@ CREATE OR REPLACE TABLE `{project_id}.{dataset}.market_insights_best_sellers_mat
     previous_rank,
     country_code AS ranking_country,
     report_category_id AS ranking_category,
-    CASE
-      WHEN
-        category_l5 != ""
-      THEN
-        category_l1 || " > " || category_l2 || " > " || category_l3 || " > " || category_l4 || " > " || category_l5
-      WHEN
-        category_l4 != ""
-      THEN
-        category_l1 || " > " || category_l2 || " > " || category_l3 || " > " || category_l4
-      WHEN
-        category_l3 != ""
-      THEN
-        category_l1 || " > " || category_l2 || " > " || category_l3
-      WHEN
-        category_l2 != ""
-      THEN
-        category_l1 || " > " || category_l2
-      WHEN
-        category_l1 != ""
-      THEN
-        category_l1
-      ELSE
-        NULL
-    END AS ranking_category_path,
-    NULL AS ranking_category_name_l1,
-    NULL AS ranking_category_name_l2,
-    NULL AS ranking_category_name_l3,
+    NULL AS ranking_category_path,
+    category_l1 AS ranking_category_name_l1,
+    category_l2 AS ranking_category_name_l2,
+    category_l3 AS ranking_category_name_l3,
     title AS product_title,
     SPLIT(variant_gtins, ' ') AS gtins,
     brand,
