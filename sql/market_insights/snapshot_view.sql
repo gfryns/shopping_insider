@@ -64,9 +64,9 @@ AS (
       PriceBenchmarks.price_benchmark_timestamp,
       CASE
         WHEN PriceBenchmarks.price_benchmark_value IS NULL THEN ''
-        WHEN (PriceBenchmarks.price_benchmark_value - Products.effective_price) < 0
+        WHEN (SAFE_DIVIDE(Products.effective_price, PriceBenchmarks.price_benchmark_value) - 1) < -0.01
           THEN 'Less than PB'
-        WHEN (PriceBenchmarks.price_benchmark_value - Products.effective_price) > 0
+        WHEN (SAFE_DIVIDE(Products.effective_price, PriceBenchmarks.price_benchmark_value) - 1) > 0.01
           THEN 'More than PB'
         ELSE 'Equal to PB'
         END AS price_competitiveness_band,
