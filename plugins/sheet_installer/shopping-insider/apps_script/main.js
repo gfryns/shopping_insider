@@ -19,7 +19,7 @@
 /** @type {string} Http url base for SQL files. */
 const SOURCE_REPO = 'https://raw.githubusercontent.com/google/shopping_insider/main';
 
-/** Definitnion of the Looker dashboard. */
+/** Definition of the Looker dashboard. */
 /** @type {string} Looker dashboard Id. */
 const LOOKER_ID = 'f1859d41-b693-470c-a404-05c585f51f20';
 /** @type {!Array<Object>} Data sources used in Looker dashboard. */
@@ -69,12 +69,12 @@ const GMC_BQ_DT_LOCATIONS = [
  * Creates or updates a data transfer configuration.
  * @param {string} name Data transfer configuration name.
  * @param {Object} resource Object contains other optional information, e.g.
- *   authorizationCode.
+ *   versionInfo.
  * @return {!CheckResult}
  */
 const createOrUpdateDataTransfer = (name, resource) => {
   const datasetId = getDocumentProperty('dataset');
-  const authorizationCode = resource.attributeValue;
+  const versionInfo = resource.attributeValue;
   const config = {
     displayName: name,
     destinationDatasetId: datasetId,
@@ -90,15 +90,12 @@ const createOrUpdateDataTransfer = (name, resource) => {
   let filterFn;
   if (name.startsWith('Merchant Center Transfer')) {
     const merchantId = getDocumentProperty('merchantId');
-    const enableMarketInsight = false;//getDocumentProperty('marketInsight') !== 'FALSE';
     config.dataSourceId = DATA_TRANSFER_SOURCE.GOOGLE_MERCHANT_CENTER;
     config.params = {
       merchant_id: merchantId,
       export_products: true,
       export_regional_inventories: false,
       export_local_inventories: false,
-      export_price_benchmarks: enableMarketInsight,
-      export_best_sellers: enableMarketInsight,
     };
     filterFn = getFilterFn('merchant_id');
   } else if (name.startsWith('Google Ads Transfer')) {
@@ -118,26 +115,26 @@ const createOrUpdateDataTransfer = (name, resource) => {
     };
   }
   return gcloud.createOrUpdateDataTransfer(
-    config, datasetId, filterFn, authorizationCode);
+    config, datasetId, filterFn, versionInfo);
 }
 
 /**
  * Creates or updates a scheduled query.
  * @param {string} name Scheduled query configuration name.
  * @param {Object} resource Object contains other optional information, e.g.
- *   authorizationCode.
+ *   versionInfo.
  * @return {!CheckResult}
  */
 const createOrUpdateScheduledQuery = (name, resource) => {
   const datasetId = getDocumentProperty('dataset');
   const [displayName, sql] = name.split('\n');
-  const authorizationCode = resource.attributeValue;
+  const versionInfo = resource.attributeValue;
   const query = getExecutableSql(`${SOURCE_REPO}/sql/${sql}`,
     PropertiesService.getDocumentProperties().getProperties(),
     replacePythonStyleParameters
   );
   return gcloud.createOrUpdateScheduledQuery(
-    displayName, datasetId, query, authorizationCode);
+    displayName, datasetId, query, versionInfo);
 }
 
 /**
@@ -284,7 +281,7 @@ const SHOPPING_INSIDER_MOJO_CONFIG = {
         'Google Ads Transfer - ${externalCustomerId}',
       ],
       editType: RESOURCE_EDIT_TYPE.READONLY,
-      attributeName: 'Authorization Code',
+      attributeName: 'Version Info',
       checkFn: createOrUpdateDataTransfer,
     },
     {
@@ -379,7 +376,7 @@ const SHOPPING_INSIDER_MOJO_CONFIG = {
       resource: 'Scheduled Query',
       value: 'Main workflow - ${dataset} - ${externalCustomerId}\nmain_workflow.sql',
       editType: RESOURCE_EDIT_TYPE.READONLY,
-      attributeName: 'Authorization Code',
+      attributeName: 'Version Info',
       checkFn: createOrUpdateScheduledQuery,
     },
     // {
@@ -387,7 +384,7 @@ const SHOPPING_INSIDER_MOJO_CONFIG = {
     //   resource: 'Scheduled Query',
     //   value: 'Best sellers workflow - ${dataset} - ${merchantId}\nmarket_insights/best_sellers_workflow.sql',
     //   editType: RESOURCE_EDIT_TYPE.READONLY,
-    //   attributeName: 'Authorization Code',
+    //   attributeName: 'Version Info',
     //   checkFn: createOrUpdateScheduledQuery,
     //   group: 'marketInsights',
     // },

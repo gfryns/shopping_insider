@@ -1,6 +1,6 @@
 {
   "name": "shopping_insider",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Google Sheets based installer for Shopping Insider",
   "author": "Google Inc.",
   "license": "Apache-2.0",
@@ -10,7 +10,7 @@
   },
   "homepage": "https://github.com/google/shopping_insider/README.md",
   "dependencies": {
-    "@google-cloud/sheets-based-installer": "^1.5.0"
+    "@google-cloud/sheets-based-installer": "^1.8.0"
   },
   "devDependencies": {
     "@google/clasp": "^2.4.2"
