@@ -242,9 +242,9 @@ class CloudDataTransferUtils(object):
         'Creating data transfer for merchant id %s to destination dataset %s',
         merchant_id, destination_dataset)
     has_valid_credentials = self._check_valid_credentials(_MERCHANT_CENTER_ID)
-    authorization_code = None
+    version_info = None
     if not has_valid_credentials:
-      authorization_code = self._get_authorization_code(_MERCHANT_CENTER_ID)
+      version_info = self._get_version_info(_MERCHANT_CENTER_ID)
     dataset_location = config_parser.get_dataset_location()
     parent = 'projects/' + self.project_id + '/locations/' + dataset_location
     input_config = {
@@ -257,7 +257,7 @@ class CloudDataTransferUtils(object):
     request = bigquery_datatransfer.CreateTransferConfigRequest(
         parent=parent,
         transfer_config=input_config,
-        authorization_code=authorization_code,
+        version_info=version_info,
     )
     transfer_config = self.client.create_transfer_config(request)
     logging.info(
@@ -301,9 +301,9 @@ class CloudDataTransferUtils(object):
         'Creating data transfer for Google Ads customer id %s to destination '
         'dataset %s', customer_id, destination_dataset)
     has_valid_credentials = self._check_valid_credentials(_GOOGLE_ADS_ID)
-    authorization_code = None
+    version_info = None
     if not has_valid_credentials:
-      authorization_code = self._get_authorization_code(_GOOGLE_ADS_ID)
+      version_info = self._get_version_info(_GOOGLE_ADS_ID)
     dataset_location = config_parser.get_dataset_location()
     parent = 'projects/' + self.project_id + '/locations/' + dataset_location
     input_config = {
@@ -316,7 +316,7 @@ class CloudDataTransferUtils(object):
     request = bigquery_datatransfer.CreateTransferConfigRequest(
         parent=parent,
         transfer_config=input_config,
-        authorization_code=authorization_code,
+        version_info=version_info,
     )
     transfer_config = self.client.create_transfer_config(request=request)
     logging.info(
@@ -373,9 +373,9 @@ class CloudDataTransferUtils(object):
       return updated_transfer_config
     dataset_location = config_parser.get_dataset_location()
     has_valid_credentials = self._check_valid_credentials('scheduled_query')
-    authorization_code = ''
+    version_info = ''
     if not has_valid_credentials:
-      authorization_code = self._get_authorization_code('scheduled_query')
+      version_info = self._get_version_info('scheduled_query')
     parent = 'projects/' + self.project_id + '/locations/' + dataset_location
     input_config = bigquery_datatransfer.TransferConfig(
         display_name=name,
@@ -386,7 +386,7 @@ class CloudDataTransferUtils(object):
     request = bigquery_datatransfer.CreateTransferConfigRequest(
         parent=parent,
         transfer_config=input_config,
-        authorization_code=authorization_code,
+        version_info=version_info,
     )
     transfer_config = self.client.create_transfer_config(request=request)
     return transfer_config
@@ -415,8 +415,8 @@ class CloudDataTransferUtils(object):
     response = self.client.check_valid_creds({'name': name})
     return response.has_valid_creds
 
-  def _get_authorization_code(self, data_source_id: str) -> str:
-    """Returns authorization code for a given data source.
+  def _get_version_info(self, data_source_id: str) -> str:
+    """Returns version info for a given data source.
 
     Args:
       data_source_id: Data source id.
@@ -427,4 +427,4 @@ class CloudDataTransferUtils(object):
 
     if not data_source:
       raise AssertionError('Invalid data source')
-    return auth.retrieve_authorization_code(client_id, scopes, data_source_id)
+    return auth.retrieve_version_info(client_id, scopes, data_source_id)

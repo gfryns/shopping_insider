@@ -19,13 +19,13 @@ import logging
 from typing import List
 from urllib import parse
 
-BASE_URL = 'https://www.gstatic.com/bigquerydatatransfer/oauthz/auth'
+BASE_URL = 'https://bigquery.cloud.google.com/datatransfer/oauthz/auth'
 REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob'
 
 
-def retrieve_authorization_code(client_id: str, scopes: List[str],
-                                app_name: str):
-  """Returns authorization code.
+def retrieve_version_info(client_id: str, scopes: List[str],
+                          app_name: str):
+  """Returns version info (formerly authorization code).
 
   Args:
     client_id: The client id.
@@ -33,18 +33,19 @@ def retrieve_authorization_code(client_id: str, scopes: List[str],
     app_name: Name of the app.
   """
   scopes_str = ' '.join(scopes)
-  authorization_code_request = {
+  version_info_request = {
       'client_id': client_id,
       'scope': scopes_str,
-      'redirect_uri': REDIRECT_URI
+      'redirect_uri': REDIRECT_URI,
+      'response_type': 'authorization_code'
   }
 
   encoded_request = parse.urlencode(
-      authorization_code_request, quote_via=parse.quote)
+      version_info_request, quote_via=parse.quote)
   url = f'{BASE_URL}?{encoded_request}'
   logging.info(
       'Please click on the URL below to authorize %s and paste the '
-      'authorization code.', app_name)
+      'version info string.', app_name)
   logging.info('URL - %s', url)
 
-  return input('Authorization Code : ')
+  return input('Version Info : ')
