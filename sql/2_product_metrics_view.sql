@@ -18,7 +18,7 @@
 # This view will get latest metrics data and create derived columns useful for further processing of
 # data.
 
-CREATE OR REPLACE VIEW `{project_id}.{dataset}.product_metrics_view_{external_customer_id}`
+CREATE OR REPLACE VIEW `{project_id}.{dataset}.product_metrics_view`
 AS (
   WITH
     GeoTargets AS (
@@ -53,7 +53,9 @@ AS (
         metrics_conversions AS conversions,
         metrics_conversions_value AS conversions_value
       FROM
-        `{project_id}.{dataset}.ads_ShoppingProductStats_{external_customer_id}`
+        `{project_id}.{dataset}.ads_ShoppingProductStats_*`
+      WHERE
+        _TABLE_SUFFIX IN {external_customer_id}
     )
   SELECT
     ShoppingProductStats._DATA_DATE,

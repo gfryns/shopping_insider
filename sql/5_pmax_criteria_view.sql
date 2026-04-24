@@ -158,9 +158,10 @@ AS (
         CAST(asset_group_id AS INT64) AS asset_group_id,
         CAST(SPLIT(asset_group_campaign, '/')[OFFSET(3)] AS INT64) AS campaign_id
       FROM
-        `{project_id}.{dataset}.ads_AssetGroup_{external_customer_id}`
+        `{project_id}.{dataset}.ads_AssetGroup_*`
       WHERE
-        asset_group_status = 'ENABLED'
+        _TABLE_SUFFIX IN {external_customer_id}
+        AND asset_group_status = 'ENABLED'
     ),
     # Find the active campaign.
     Campaigns AS (
@@ -357,4 +358,6 @@ AS (
   FROM Criteria
   INNER JOIN Merchants
     USING (campaign_id)
+);n_id)
+);SING (campaign_id)
 );

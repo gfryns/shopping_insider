@@ -42,9 +42,10 @@ CREATE OR REPLACE VIEW `{project_id}.{dataset}.market_insights_historical_view` 
           price.currency AS price_currency,
           sale_price.value AS sale_price,
           sale_price.currency AS sale_price_currency,
-        FROM `{project_id}.{dataset}.Products_{merchant_id}` AS Products,
+        FROM `{project_id}.{dataset}.Products_*` AS Products,
           Products.destinations,
           UNNEST(ARRAY_CONCAT(destinations.approved_countries, destinations.pending_countries, destinations.disapproved_countries)) AS target_country
+        WHERE _TABLE_SUFFIX IN {merchant_id}
       )
       LEFT JOIN (
         SELECT
@@ -54,7 +55,8 @@ CREATE OR REPLACE VIEW `{project_id}.{dataset}.market_insights_historical_view` 
           benchmark_price.amount_micros / 1000000 AS price_benchmark_value,
           benchmark_price.currency_code AS price_benchmark_currency,
           _PARTITIONDATE AS price_benchmark_timestamp
-        FROM `{project_id}.{dataset}.PriceCompetitiveness_{merchant_id}`
+        FROM `{project_id}.{dataset}.PriceCompetitiveness_*`
+        WHERE _TABLE_SUFFIX IN {merchant_id}
       )
       USING (data_date, unique_product_id, target_country)
 )

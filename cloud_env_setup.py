@@ -78,10 +78,10 @@ def parse_arguments() -> argparse.Namespace:
       default=_DATASET_ID,
       required=False)
   parser.add_argument(
-      '--merchant_id', help='Google Merchant Center Account Id.', required=True)
+      '--merchant_id', help='Google Merchant Center Account Id(s), comma separated.', required=True)
   parser.add_argument(
       '--ads_customer_id',
-      help='Google Ads External Customer Id.',
+      help='Google Ads External Customer Id(s), comma separated.',
       required=True)
   parser.add_argument(
       '--market_insights',
@@ -94,49 +94,64 @@ def parse_arguments() -> argparse.Namespace:
 
 def main():
   args = parse_arguments()
-  ads_customer_id = args.ads_customer_id.replace('-', '')
+  ads_customer_ids = [c.strip().replace('-', '') for c in args.ads_customer_id.split(',')]
+  formatted_ads_customer_ids = ','.join(ads_customer_ids)
+  merchant_ids = [m.strip() for m in args.merchant_id.split(',')]
   data_transfer = cloud_data_transfer.CloudDataTransferUtils(args.project_id)
   logging.info('Enabling APIs.')
   enable_apis(args.project_id)
   logging.info('Enabled APIs.')
   logging.info('Creating %s dataset.', args.dataset_id)
   cloud_bigquery.create_dataset_if_not_exists(args.project_id, args.dataset_id)
-  merchant_center_config = data_transfer.create_merchant_center_transfer(
-      args.merchant_id, args.dataset_id, args.market_insights)
-  ads_config = data_transfer.create_google_ads_transfer(ads_customer_id,
-                                                        args.dataset_id)
-  try:
-    logging.info('Checking the GMC data transfer status.')
-    data_transfer.wait_for_transfer_completion(merchant_center_config)
-    logging.info('The GMC data have been successfully transferred.')
-  except cloud_data_transfer.DataTransferError:
-    logging.error('If you have just created GMC transfer - you may need to'
-                  'wait for up to 90 minutes before the data of your Merchant'
-                  'account are prepared and available for the transfer.')
-    raise
-  logging.info('Checking the Google Ads data transfer status.')
-  data_transfer.wait_for_transfer_completion(ads_config)
-  logging.info('The Google Ads data have been successfully transferred.')
+
+  merchant_configs = []
+  for merchant_id in merchant_ids:
+    merchant_center_config = data_transfer.create_merchant_center_transfer(
+        merchant_id, args.dataset_id, args.market_insights)
+    merchant_configs.append(merchant_center_config)
+
+  ads_configs = []
+  for customer_id in ads_customer_ids:
+    ads_config = data_transfer.create_google_ads_transfer(customer_id,
+                                                          args.dataset_id)
+    ads_configs.append(ads_config)
+
+  for merchant_id, merchant_config in zip(merchant_ids, merchant_configs):
+    try:
+      logging.info('Checking the GMC data transfer status for merchant %s.', merchant_id)
+      data_transfer.wait_for_transfer_completion(merchant_config)
+      logging.info('The GMC data for merchant %s have been successfully transferred.', merchant_id)
+    except cloud_data_transfer.DataTransferError:
+      logging.error('If you have just created GMC transfer for %s - you may need to'
+                    'wait for up to 90 minutes before the data of your Merchant'
+                    'account are prepared and available for the transfer.', merchant_id)
+      raise
+
+  for customer_id, ads_config in zip(ads_customer_ids, ads_configs):
+    logging.info('Checking the Google Ads data transfer status for customer %s.', customer_id)
+    data_transfer.wait_for_transfer_completion(ads_config)
+    logging.info('The Google Ads data for customer %s have been successfully transferred.', customer_id)
+
   cloud_bigquery.load_language_codes(args.project_id, args.dataset_id)
   cloud_bigquery.load_geo_targets(args.project_id, args.dataset_id)
   logging.info('Creating Shopping Insider specific views.')
   cloud_bigquery.execute_queries(args.project_id, args.dataset_id,
-                                 args.merchant_id, ads_customer_id,
+                                 args.merchant_id, formatted_ads_customer_ids,
                                  args.market_insights)
   logging.info('Created Shopping Insider specific views.')
   logging.info('Updating targeted products')
   query = cloud_bigquery.get_main_workflow_sql(args.project_id, args.dataset_id,
                                                args.merchant_id,
-                                               ads_customer_id)
+                                               formatted_ads_customer_ids)
   data_transfer.schedule_query(
-      f'Main workflow - {args.dataset_id} - {ads_customer_id}', query)
+      f'Main workflow - {args.dataset_id} - Multiple Customers', query)
   logging.info('Job created to run Shopping Insider main workflow.')
   if args.market_insights:
     logging.info('Market insights requested, creating scheduled query')
     best_sellers_query = cloud_bigquery.get_best_sellers_workflow_sql(
         args.project_id, args.dataset_id, args.merchant_id)
     data_transfer.schedule_query(
-        f'Best sellers workflow - {args.dataset_id} - {args.merchant_id}',
+        f'Best sellers workflow - {args.dataset_id} - Multiple Merchants',
         best_sellers_query)
     logging.info('Job created to run best sellers workflow.')
   logging.info('Shopping Insider installation is complete!')

@@ -14,7 +14,7 @@
 
 # Creates a view with targeted products.
 
-CREATE OR REPLACE VIEW `{project_id}.{dataset}.targeted_products_view_{external_customer_id}`
+CREATE OR REPLACE VIEW `{project_id}.{dataset}.targeted_products_view`
 AS (
   WITH
     IdTargetedOffer AS (
@@ -25,7 +25,7 @@ AS (
         target_country,
         offer_id
       FROM
-        `{project_id}.{dataset}.pmax_criteria_view_{external_customer_id}` AS Criteria
+        `{project_id}.{dataset}.pmax_criteria_view` AS Criteria
       WHERE
         offer_id IS NOT NULL
     ),
@@ -37,7 +37,7 @@ AS (
         ProductView.merchant_id,
         ProductView.target_country
       FROM
-        `{project_id}.{dataset}.product_view_{merchant_id}` AS ProductView
+        `{project_id}.{dataset}.product_view` AS ProductView
       INNER JOIN IdTargetedOffer
         ON
           IdTargetedOffer.merchant_id = ProductView.merchant_id
@@ -53,8 +53,8 @@ AS (
         ProductView.merchant_id,
         ProductView.target_country
       FROM
-        `{project_id}.{dataset}.product_view_{merchant_id}` AS ProductView
-      INNER JOIN `{project_id}.{dataset}.criteria_view_{external_customer_id}` AS Criteria
+        `{project_id}.{dataset}.product_view` AS ProductView
+      INNER JOIN `{project_id}.{dataset}.criteria_view` AS Criteria
         ON
           Criteria.merchant_id = ProductView.merchant_id
           AND Criteria.target_country = ProductView.target_country

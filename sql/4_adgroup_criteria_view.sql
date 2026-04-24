@@ -407,7 +407,7 @@ AS (
         ShoppingProductStats.segments_product_merchant_id AS merchant_id,
         GeoTargets.country_code AS target_country
       FROM
-        `{project_id}.{dataset}.ads_ShoppingProductStats_{external_customer_id}`
+        `{project_id}.{dataset}.ads_ShoppingProductStats_*`
           AS ShoppingProductStats
       INNER JOIN
         `{project_id}.{dataset}.geo_targets` AS GeoTargets
@@ -419,10 +419,16 @@ AS (
               SAFE_OFFSET(1)]
             AS INT64)
           = GeoTargets.parent_id
+      WHERE
+        ShoppingProductStats._TABLE_SUFFIX IN {external_customer_id}
     )
   SELECT
     *
   FROM FinalCriteria
+  INNER JOIN Merchants
+    USING (campaign_id)
+);
+ROM FinalCriteria
   INNER JOIN Merchants
     USING (campaign_id)
 );

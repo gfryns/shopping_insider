@@ -16,7 +16,7 @@
 #
 # The view will get the latest account info and create derived columns useful for further processing
 # of data.
-CREATE OR REPLACE VIEW `{project_id}.{dataset}.customer_view_{external_customer_id}`
+CREATE OR REPLACE VIEW `{project_id}.{dataset}.customer_view`
 AS (
   SELECT DISTINCT
     _DATA_DATE,
@@ -24,5 +24,7 @@ AS (
     customer_id,
     customer_descriptive_name
   FROM
-    `{project_id}.{dataset}.ads_Customer_{external_customer_id}`
+    `{project_id}.{dataset}.ads_Customer_*`
+  WHERE
+    _TABLE_SUFFIX IN {external_customer_id}
 );

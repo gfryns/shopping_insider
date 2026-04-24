@@ -14,7 +14,7 @@
 
 # Creates a snapshot criteria view for both stardard & pmax campaigns.
 
-CREATE OR REPLACE VIEW `{project_id}.{dataset}.criteria_view_{external_customer_id}`
+CREATE OR REPLACE VIEW `{project_id}.{dataset}.criteria_view`
 AS (
   SELECT
     _DATA_DATE,
@@ -63,7 +63,7 @@ AS (
     neg_brand,
     neg_offer_id
   FROM
-    `{project_id}.{dataset}.adgroup_criteria_view_{external_customer_id}`
+    `{project_id}.{dataset}.adgroup_criteria_view`
   UNION ALL
   SELECT
     _DATA_DATE,
@@ -112,5 +112,5 @@ AS (
     neg_brand,
     neg_offer_id
   FROM
-    `{project_id}.{dataset}.pmax_criteria_view_{external_customer_id}`
+    `{project_id}.{dataset}.pmax_criteria_view`
 );

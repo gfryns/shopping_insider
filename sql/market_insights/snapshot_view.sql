@@ -24,8 +24,9 @@ AS (
         country_code AS target_country,
         TRUE AS is_best_seller,
       FROM
-        `{project_id}.{dataset}.BestSellersProductClusterWeekly_{merchant_id}`
+        `{project_id}.{dataset}.BestSellersProductClusterWeekly_*`
           AS BestSellers
+      WHERE _TABLE_SUFFIX IN {merchant_id}
     ),
     Products AS (
       SELECT
@@ -50,7 +51,8 @@ AS (
         benchmark_price.currency_code AS price_benchmark_currency,
         NULL AS price_benchmark_timestamp
       FROM
-        `{project_id}.{dataset}.PriceCompetitiveness_{merchant_id}`
+        `{project_id}.{dataset}.PriceCompetitiveness_*`
+      WHERE _TABLE_SUFFIX IN {merchant_id}
     )
   SELECT
     Products AS product,
@@ -74,7 +76,10 @@ AS (
         AS price_vs_benchmark
     ) AS price_benchmarks
   FROM Products
-  LEFT JOIN `{project_id}.{dataset}.BestSellersEntityProductMapping_{merchant_id}`
+  LEFT JOIN (
+    SELECT DISTINCT product_id, entity_id FROM `{project_id}.{dataset}.BestSellersEntityProductMapping_*`
+    WHERE _TABLE_SUFFIX IN {merchant_id}
+  )
     USING (product_id)
   LEFT JOIN BestSellers
     USING (data_date, entity_id, target_country)

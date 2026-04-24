@@ -42,7 +42,7 @@ AS (
     IFNULL(SUM(clicks_30_days), 0) AS total_clicks_30_days,
     IFNULL(SUM(cost_30_days), 0) AS total_cost_30_days
   FROM
-    `{project_id}.{dataset}.product_detailed_view_{external_customer_id}`
+    `{project_id}.{dataset}.product_detailed_view`
   WHERE
     _DATA_DATE >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
   GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9

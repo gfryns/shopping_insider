@@ -14,7 +14,7 @@
 
 # Creates a snapshot view of products combined with performance metrics.
 
-CREATE OR REPLACE VIEW `{project_id}.{dataset}.product_detailed_view_{external_customer_id}`
+CREATE OR REPLACE VIEW `{project_id}.{dataset}.product_detailed_view`
 AS
 WITH
   ProductMetrics AS (
@@ -40,9 +40,9 @@ WITH
         SUM(ProductMetricsView.clicks),
         SUM(ProductMetricsView.impressions)) AS ctr_30_days
     FROM
-      `{project_id}.{dataset}.product_metrics_view_{external_customer_id}` AS ProductMetricsView
+      `{project_id}.{dataset}.product_metrics_view` AS ProductMetricsView
     INNER JOIN
-      `{project_id}.{dataset}.product_view_{merchant_id}` AS ProductView
+      `{project_id}.{dataset}.product_view` AS ProductView
       ON
         ProductMetricsView.merchant_id = ProductView.merchant_id
         AND LOWER(ProductMetricsView.channel) = LOWER(ProductView.channel)
@@ -133,7 +133,7 @@ WITH
         ProductView._DATA_DATE,
         DAY) AS days_until_expiration
     FROM
-      `{project_id}.{dataset}.product_view_{merchant_id}` AS ProductView
+      `{project_id}.{dataset}.product_view` AS ProductView
     LEFT JOIN
       ProductMetrics
       ON
@@ -141,12 +141,12 @@ WITH
         AND ProductMetrics.unique_product_id = ProductView.unique_product_id
         AND ProductMetrics.target_country = ProductView.target_country
     LEFT JOIN
-      `{project_id}.{dataset}.customer_view_{external_customer_id}` AS customer_view
+      `{project_id}.{dataset}.customer_view` AS customer_view
       ON
         customer_view.customer_id = ProductMetrics.customer_id
         AND customer_view._DATA_DATE = ProductMetrics._DATA_DATE
     LEFT JOIN
-      `{project_id}.{dataset}.targeted_products_view_{external_customer_id}` AS TargetedProduct
+      `{project_id}.{dataset}.targeted_products_view` AS TargetedProduct
       ON
         TargetedProduct.merchant_id = ProductView.merchant_id
         AND TargetedProduct.product_id = ProductView.product_id

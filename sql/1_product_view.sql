@@ -18,7 +18,7 @@
 # This view will get latest product data and create derived columns useful for further processing of
 # data.
 
-CREATE OR REPLACE VIEW `{project_id}.{dataset}.product_view_{merchant_id}`
+CREATE OR REPLACE VIEW `{project_id}.{dataset}.product_view`
 AS (
   WITH
     ApprovedOffer AS (
@@ -28,9 +28,11 @@ AS (
         merchant_id,
         target_country
       FROM
-        `{project_id}.{dataset}.Products_{merchant_id}` AS Products,
+        `{project_id}.{dataset}.Products_*` AS Products,
         Products.destinations,
         destinations.approved_countries AS target_country
+      WHERE
+        _TABLE_SUFFIX IN {merchant_id}
     ),
     PendingOffer AS (
       SELECT DISTINCT
@@ -39,9 +41,11 @@ AS (
         merchant_id,
         target_country
       FROM
-        `{project_id}.{dataset}.Products_{merchant_id}` AS Products,
+        `{project_id}.{dataset}.Products_*` AS Products,
         Products.destinations,
         destinations.pending_countries AS target_country
+      WHERE
+        _TABLE_SUFFIX IN {merchant_id}
     ),
     DisapprovedOffer AS (
       SELECT DISTINCT
@@ -50,9 +54,11 @@ AS (
         merchant_id,
         target_country
       FROM
-        `{project_id}.{dataset}.Products_{merchant_id}` AS Products,
+        `{project_id}.{dataset}.Products_*` AS Products,
         Products.destinations,
         destinations.disapproved_countries AS target_country
+      WHERE
+        _TABLE_SUFFIX IN {merchant_id}
     ),
     OfferIssue AS (
       SELECT
@@ -70,9 +76,11 @@ AS (
           IF(LOWER(issues.servability) = 'unaffected', issues.short_description, NULL), ', ')
           AS warning_issues
       FROM
-        `{project_id}.{dataset}.Products_{merchant_id}` AS Products,
+        `{project_id}.{dataset}.Products_*` AS Products,
         Products.issues,
         issues.applicable_countries AS target_country
+      WHERE
+        _TABLE_SUFFIX IN {merchant_id}
       GROUP BY
         1, 2, 3, 4
     ),
@@ -82,7 +90,9 @@ AS (
         merchant_id,
         product_id
       FROM
-        `{project_id}.{dataset}.Products_{merchant_id}`
+        `{project_id}.{dataset}.Products_*`
+      WHERE
+        _TABLE_SUFFIX IN {merchant_id}
       GROUP BY
         _PARTITIONDATE,
         merchant_id,
@@ -93,7 +103,9 @@ AS (
       SELECT
         MAX(_PARTITIONDATE) AS latest_date
       FROM
-        `{project_id}.{dataset}.Products_{merchant_id}`
+        `{project_id}.{dataset}.Products_*`
+      WHERE
+        _TABLE_SUFFIX IN {merchant_id}
     ),
     ProductStatus AS (
       SELECT
@@ -161,7 +173,7 @@ AS (
         IF(MultiChannelTable.product_id IS NULL, 'single_channel', 'multi_channel')
           AS channel_exclusivity
       FROM
-        `{project_id}.{dataset}.Products_{merchant_id}` AS Products,
+        `{project_id}.{dataset}.Products_*` AS Products,
         LatestDate
       LEFT JOIN ApprovedOffer
         USING (_PARTITIONDATE, product_id, merchant_id)
@@ -171,6 +183,8 @@ AS (
         USING (_PARTITIONDATE, product_id, merchant_id)
       LEFT JOIN MultiChannelTable
         USING (_PARTITIONDATE, product_id, merchant_id)
+      WHERE
+        _TABLE_SUFFIX IN {merchant_id}
     )
   SELECT
     ProductStatus.*,

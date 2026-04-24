@@ -32,6 +32,7 @@ source ${VIRTUALENV_PATH}/bin/activate
 pip install --require-hashes -r requirements.txt
 
 # Setup cloud environment.
+# Note: --merchant_id and --ads_customer_id can accept a comma-separated list of IDs for multiple accounts.
 PYTHONPATH=src/plugins:$PYTHONPATH
 export PYTHONPATH
 python cloud_env_setup.py "$@"

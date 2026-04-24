@@ -29,12 +29,12 @@ AS (
     MaxDataDate AS (
       SELECT
         MAX(_DATA_DATE) AS _DATA_DATE
-      FROM `{project_id}.{dataset}.targeted_products_view_{external_customer_id}`
+      FROM `{project_id}.{dataset}.targeted_products_view`
     )
   SELECT
     *
   FROM
-    `{project_id}.{dataset}.product_detailed_view_{external_customer_id}`
+    `{project_id}.{dataset}.product_detailed_view`
   INNER JOIN MaxDataDate
     USING (_DATA_DATE)
 );
