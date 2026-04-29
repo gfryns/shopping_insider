@@ -32,7 +32,7 @@ AS (
         Products.destinations,
         destinations.approved_countries AS target_country
       WHERE
-        _TABLE_SUFFIX IN {merchant_id}
+        _TABLE_SUFFIX IN ({merchant_id})
     ),
     PendingOffer AS (
       SELECT DISTINCT
@@ -45,7 +45,7 @@ AS (
         Products.destinations,
         destinations.pending_countries AS target_country
       WHERE
-        _TABLE_SUFFIX IN {merchant_id}
+        _TABLE_SUFFIX IN ({merchant_id})
     ),
     DisapprovedOffer AS (
       SELECT DISTINCT
@@ -58,7 +58,7 @@ AS (
         Products.destinations,
         destinations.disapproved_countries AS target_country
       WHERE
-        _TABLE_SUFFIX IN {merchant_id}
+        _TABLE_SUFFIX IN ({merchant_id})
     ),
     OfferIssue AS (
       SELECT
@@ -80,7 +80,7 @@ AS (
         Products.issues,
         issues.applicable_countries AS target_country
       WHERE
-        _TABLE_SUFFIX IN {merchant_id}
+        _TABLE_SUFFIX IN ({merchant_id})
       GROUP BY
         1, 2, 3, 4
     ),
@@ -92,7 +92,7 @@ AS (
       FROM
         `{project_id}.{dataset}.Products_*`
       WHERE
-        _TABLE_SUFFIX IN {merchant_id}
+        _TABLE_SUFFIX IN ({merchant_id})
       GROUP BY
         _PARTITIONDATE,
         merchant_id,
@@ -105,7 +105,7 @@ AS (
       FROM
         `{project_id}.{dataset}.Products_*`
       WHERE
-        _TABLE_SUFFIX IN {merchant_id}
+        _TABLE_SUFFIX IN ({merchant_id})
     ),
     ProductStatus AS (
       SELECT
@@ -184,7 +184,7 @@ AS (
       LEFT JOIN MultiChannelTable
         USING (_PARTITIONDATE, product_id, merchant_id)
       WHERE
-        _TABLE_SUFFIX IN {merchant_id}
+        _TABLE_SUFFIX IN ({merchant_id})
     )
   SELECT
     ProductStatus.*,

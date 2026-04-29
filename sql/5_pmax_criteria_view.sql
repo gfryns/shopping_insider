@@ -161,7 +161,7 @@ AS (
       FROM
         `{project_id}.{dataset}.ads_AssetGroup_*`
       WHERE
-        _TABLE_SUFFIX IN {external_customer_id}
+        _TABLE_SUFFIX IN ({external_customer_id})
         AND asset_group_status = 'ENABLED'
     ),
     # Find the active campaign.
@@ -195,7 +195,7 @@ AS (
               SAFE_OFFSET(1)]
             AS INT64)
           = GeoTargets.parent_id
-      WHERE _TABLE_SUFFIX IN {external_customer_id}
+      WHERE _TABLE_SUFFIX IN ({external_customer_id})
     ),
     # Get the active criteria only.
     FilteredData AS (

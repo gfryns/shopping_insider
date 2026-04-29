@@ -101,15 +101,16 @@ def configure_sql(sql_path: str, query_params: Dict[str, Any]) -> str:
 
   params = {}
   for param_key, param_value in query_params.items():
-    # If given value is list of strings (ex. 'a,b,c'), create tuple of
-    # strings (ex. ('a', 'b', 'c')) to pass to SQL IN operator.
+    # If given value is list of strings (ex. 'a,b,c'), create a comma-separated
+    # list of quoted strings (ex. 'a', 'b', 'c') to pass to SQL IN operator.
     if param_key in ('merchant_id', 'external_customer_id'):
       if isinstance(param_value, str):
-        params[param_key] = tuple(m.strip() for m in param_value.split(','))
+        ids = [m.strip() for m in param_value.split(',')]
       elif isinstance(param_value, (list, tuple)):
-        params[param_key] = tuple(param_value)
+        ids = [str(m) for m in param_value]
       else:
-        params[param_key] = (str(param_value),)
+        ids = [str(param_value)]
+      params[param_key] = ", ".join(f"'{i}'" for i in ids)
     elif isinstance(param_value, str) and ',' in param_value:
       params[param_key] = tuple(param_value.split(','))
     else:

@@ -423,7 +423,7 @@ AS (
             AS INT64)
           = GeoTargets.parent_id
       WHERE
-        ShoppingProductStats._TABLE_SUFFIX IN {external_customer_id}
+        ShoppingProductStats._TABLE_SUFFIX IN ({external_customer_id})
     )
   SELECT
     *

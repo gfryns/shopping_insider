@@ -60,5 +60,5 @@ CREATE OR REPLACE TABLE `{project_id}.{dataset}.market_insights_best_sellers_mat
     `{project_id}.{dataset}.BestSellersProductClusterWeekly_*`
   WHERE
     _PARTITIONDATE = DATE_SUB(CURRENT_DATE(), INTERVAL 2 DAY)
-    AND _TABLE_SUFFIX IN {merchant_id}
+    AND _TABLE_SUFFIX IN ({merchant_id})
 );
