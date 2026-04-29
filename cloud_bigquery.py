@@ -152,7 +152,7 @@ def configure_sql(sql_path: str, query_params: Dict[str, Any]) -> str:
       subqueries = []
       for cid in ids:
         subqueries.append(
-            f"SELECT *, '{cid}' as _TABLE_SUFFIX FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`"
+            f"SELECT *, _PARTITIONTIME, '{cid}' as _TABLE_SUFFIX FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`"
         )
       return "(" + " UNION ALL ".join(subqueries) + ")"
 
