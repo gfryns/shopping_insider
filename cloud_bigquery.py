@@ -120,30 +120,43 @@ def configure_sql(sql_path: str, query_params: Dict[str, Any]) -> str:
   # This avoids "Views cannot be queried through prefix" error in BigQuery.
   import re
   
-  raw_customer_ids = []
-  if 'external_customer_id' in query_params:
-    val = query_params['external_customer_id']
+  def get_raw_ids(param_key):
+    if param_key not in query_params:
+      return []
+    val = query_params[param_key]
     if isinstance(val, str):
-      raw_customer_ids = [v.strip().replace('-', '') for v in val.split(',')]
+      return [v.strip().replace('-', '') for v in val.split(',')]
     elif isinstance(val, (list, tuple)):
-      raw_customer_ids = [str(v).replace('-', '') for v in val]
+      return [str(v).replace('-', '') for v in val]
     else:
-      raw_customer_ids = [str(val).replace('-', '')]
+      return [str(val).replace('-', '')]
 
-  if raw_customer_ids:
-    def replacer(match):
-      table_base = match.group(1)
-      if len(raw_customer_ids) == 1:
-        return f"`{{project_id}}.{{dataset}}.{table_base}_{raw_customer_ids[0]}`"
-      else:
-        subqueries = []
-        for cid in raw_customer_ids:
-          subqueries.append(
-              f"SELECT *, '{cid}' as _TABLE_SUFFIX FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`"
-          )
-        return "(" + " UNION ALL ".join(subqueries) + ")"
+  raw_customer_ids = get_raw_ids('external_customer_id')
+  raw_merchant_ids = get_raw_ids('merchant_id')
 
-    sql_script = re.sub(r"`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`", replacer, sql_script)
+  def replacer(match):
+    table_base = match.group(1)
+    
+    # Determine which IDs to use based on table name prefix
+    if table_base.startswith('ads_'):
+      ids = raw_customer_ids
+    else:
+      ids = raw_merchant_ids
+      
+    if not ids:
+      return match.group(0) # Return original if no IDs available
+      
+    if len(ids) == 1:
+      return f"`{{project_id}}.{{dataset}}.{table_base}_{ids[0]}`"
+    else:
+      subqueries = []
+      for cid in ids:
+        subqueries.append(
+            f"SELECT *, '{cid}' as _TABLE_SUFFIX FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`"
+        )
+      return "(" + " UNION ALL ".join(subqueries) + ")"
+
+  sql_script = re.sub(r"`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`", replacer, sql_script)
 
   return sql_script.format(**params)
 
