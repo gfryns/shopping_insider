@@ -23,7 +23,7 @@ AS (
   WITH
     ApprovedOffer AS (
       SELECT DISTINCT
-        _PARTITIONDATE,
+        DATE(_PARTITIONTIME) AS _PARTITIONDATE,
         product_id,
         merchant_id,
         target_country
@@ -36,7 +36,7 @@ AS (
     ),
     PendingOffer AS (
       SELECT DISTINCT
-        _PARTITIONDATE,
+        DATE(_PARTITIONTIME) AS _PARTITIONDATE,
         product_id,
         merchant_id,
         target_country
@@ -49,7 +49,7 @@ AS (
     ),
     DisapprovedOffer AS (
       SELECT DISTINCT
-        _PARTITIONDATE,
+        DATE(_PARTITIONTIME) AS _PARTITIONDATE,
         product_id,
         merchant_id,
         target_country
@@ -62,7 +62,7 @@ AS (
     ),
     OfferIssue AS (
       SELECT
-        _PARTITIONDATE,
+        DATE(_PARTITIONTIME) AS _PARTITIONDATE,
         product_id,
         merchant_id,
         target_country,
@@ -86,7 +86,7 @@ AS (
     ),
     MultiChannelTable AS (
       SELECT DISTINCT
-        _PARTITIONDATE,
+        DATE(_PARTITIONTIME) AS _PARTITIONDATE,
         merchant_id,
         product_id
       FROM
@@ -101,7 +101,7 @@ AS (
     ),
     LatestDate AS (
       SELECT
-        MAX(_PARTITIONDATE) AS latest_date
+        MAX(DATE(_PARTITIONTIME)) AS latest_date
       FROM
         `{project_id}.{dataset}.Products_*`
       WHERE
@@ -109,7 +109,7 @@ AS (
     ),
     ProductStatus AS (
       SELECT
-        Products._PARTITIONDATE AS _DATA_DATE,
+        DATE(Products._PARTITIONTIME) AS _DATA_DATE,
         LatestDate.latest_date AS _LATEST_DATE,
         Products.product_id,
         Products.merchant_id,

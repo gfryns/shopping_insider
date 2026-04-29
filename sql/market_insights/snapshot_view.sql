@@ -19,7 +19,7 @@ AS (
   WITH
     BestSellers AS (
       SELECT DISTINCT
-        _PARTITIONDATE AS data_date,
+        DATE(_PARTITIONTIME) AS data_date,
         entity_id,
         country_code AS target_country,
         TRUE AS is_best_seller,
@@ -44,7 +44,7 @@ AS (
     ),
     PriceBenchmarks AS (
       SELECT
-        _PARTITIONDATE AS data_date,
+        DATE(_PARTITIONTIME) AS data_date,
         CONCAT(CAST(merchant_id AS STRING), '|', id) AS unique_product_id,
         report_country_code AS target_country,
         benchmark_price.amount_micros / 1000000 AS price_benchmark_value,

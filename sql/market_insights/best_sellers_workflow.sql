@@ -14,7 +14,7 @@
 
 CREATE OR REPLACE TABLE `{project_id}.{dataset}.market_insights_best_sellers_materialized` AS (
   SELECT
-    _PARTITIONDATE AS data_date,
+    DATE(_PARTITIONTIME) AS data_date,
     NULL AS rank_id,
     rank,
     previous_rank,
@@ -59,6 +59,6 @@ CREATE OR REPLACE TABLE `{project_id}.{dataset}.market_insights_best_sellers_mat
   FROM
     `{project_id}.{dataset}.BestSellersProductClusterWeekly_*`
   WHERE
-    _PARTITIONDATE = DATE_SUB(CURRENT_DATE(), INTERVAL 2 DAY)
+    DATE(_PARTITIONTIME) = DATE_SUB(CURRENT_DATE(), INTERVAL 2 DAY)
     AND _TABLE_SUFFIX IN ({merchant_id})
 );

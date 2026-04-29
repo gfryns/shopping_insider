@@ -35,7 +35,7 @@ CREATE OR REPLACE VIEW `{project_id}.{dataset}.market_insights_historical_view` 
         SAFE_DIVIDE(sale_price, price_benchmark_value) - 1 AS sale_price_vs_benchmark,
       FROM (
         SELECT DISTINCT
-          _PARTITIONDATE AS data_date,
+          DATE(_PARTITIONTIME) AS data_date,
           CONCAT(CAST(merchant_id AS STRING), '|', product_id) AS unique_product_id,
           target_country,
           price.value AS price,
@@ -49,12 +49,12 @@ CREATE OR REPLACE VIEW `{project_id}.{dataset}.market_insights_historical_view` 
       )
       LEFT JOIN (
         SELECT
-          _PARTITIONDATE AS data_date,
+          DATE(_PARTITIONTIME) AS data_date,
           CONCAT(CAST(merchant_id AS STRING), '|', id) AS unique_product_id,
           report_country_code AS target_country,
           benchmark_price.amount_micros / 1000000 AS price_benchmark_value,
           benchmark_price.currency_code AS price_benchmark_currency,
-          _PARTITIONDATE AS price_benchmark_timestamp
+          DATE(_PARTITIONTIME) AS price_benchmark_timestamp
         FROM `{project_id}.{dataset}.PriceCompetitiveness_*`
         WHERE _TABLE_SUFFIX IN ({merchant_id})
       )
