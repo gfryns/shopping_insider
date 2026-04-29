@@ -17,7 +17,7 @@
 /** @fileoverview The constants and functions for Shopping Insider. */
 
 /** @type {string} Http url base for SQL files. */
-const SOURCE_REPO = 'https://raw.githubusercontent.com/google/shopping_insider/main';
+const SOURCE_REPO = 'https://raw.githubusercontent.com/gfryns/shopping_insider/apps-script-multi-accounts';
 
 /** Definition of the Looker dashboard. */
 /** @type {string} Looker dashboard Id. */
@@ -288,6 +288,25 @@ MOJO_CONFIG_TEMPLATE.bigQueryView = {
   checkFn: createBigQueryViews,
 };
 
+/**
+ * Clean up account number list.
+ * @param {string} e Account number list.
+ * @return {!CheckResult}
+ */
+const cleanAccountNumberList = (e) => {
+  if (!/^[0-9][0-9-]*[0-9](?:\s*,\s*[0-9][0-9-]*[0-9])*$/.test(e)) {
+    return {
+      status: RESOURCE_STATUS.ERROR,
+      message:
+        "Only digits and dash(-) are allowed in account IDs. They must be separated by commas.",
+    };
+  }
+  return {
+    status: RESOURCE_STATUS.OK,
+    value: e.replaceAll("-", ""),
+  };
+};
+
 /** Solution configurations for Shopping Insider. */
 const SHOPPING_INSIDER_MOJO_CONFIG = {
   sheetName: 'Shopping Insider',
@@ -298,7 +317,7 @@ const SHOPPING_INSIDER_MOJO_CONFIG = {
       category: 'General',
       resource: 'GMC Account Id',
       propertyName: 'merchantId',
-      checkFn: cleanAccountNumber,
+      checkFn: cleanAccountNumberList,
     },
     // {
     //   category: 'General',
@@ -314,7 +333,7 @@ const SHOPPING_INSIDER_MOJO_CONFIG = {
       category: 'General',
       resource: 'Google Ads MCC',
       propertyName: 'externalCustomerId',
-      checkFn: cleanAccountNumber,
+      checkFn: cleanAccountNumberList,
     },
     { template: 'projectId' },
     {

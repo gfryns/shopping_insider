@@ -17,7 +17,7 @@
 # The view parse the adgroup criteria into multiple columns that will used to join with the GMC data
 # to find the targeted products.
 
-CREATE OR REPLACE VIEW `{project_id}.{dataset}.adgroup_criteria_view_{external_customer_id}`
+CREATE OR REPLACE VIEW `{project_id}.{dataset}.adgroup_criteria_view`
 AS (
   WITH
     # Retrieves the 'ENABLED' & 'SHOPPING' criteria.
@@ -37,17 +37,20 @@ AS (
         # Split the individual criterion
         SPLIT(AdGroupCriteria.ad_group_criterion_display_name, '&+') AS sub_criteria,
       FROM
-        `{project_id}.{dataset}.ads_Campaign_{external_customer_id}` AS Campaigns
+        `{project_id}.{dataset}.ads_Campaign_*` AS Campaigns
       INNER JOIN
-        `{project_id}.{dataset}.ads_AdGroup_{external_customer_id}` AS AdGroups
+        `{project_id}.{dataset}.ads_AdGroup_*` AS AdGroups
         USING (campaign_id, _DATA_DATE, _LATEST_DATE)
       INNER JOIN
-        `{project_id}.{dataset}.ads_AdGroupCriterion_{external_customer_id}` AS AdGroupCriteria
+        `{project_id}.{dataset}.ads_AdGroupCriterion_*` AS AdGroupCriteria
         USING (ad_group_id, _DATA_DATE, _LATEST_DATE)
       WHERE
         Campaigns.campaign_status = 'ENABLED'
         AND AdGroups.ad_group_status = 'ENABLED'
         AND AdGroups.ad_group_type IN ('SHOPPING_PRODUCT_ADS', 'SHOPPING_SMART_ADS')
+        AND Campaigns._TABLE_SUFFIX IN ({external_customer_id})
+        AND AdGroups._TABLE_SUFFIX IN ({external_customer_id})
+        AND AdGroupCriteria._TABLE_SUFFIX IN ({external_customer_id})
     ),
     # Unnest the criterion into each row.
     FlattenCriteria AS (
