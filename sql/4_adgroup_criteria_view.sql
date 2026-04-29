@@ -431,7 +431,3 @@ AS (
   INNER JOIN Merchants
     USING (campaign_id)
 );
-ROM FinalCriteria
-  INNER JOIN Merchants
-    USING (campaign_id)
-);
