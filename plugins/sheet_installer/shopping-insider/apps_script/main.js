@@ -17,7 +17,7 @@
 /** @fileoverview The constants and functions for Shopping Insider. */
 
 /** @type {string} Http url base for SQL files. */
-const SOURCE_REPO = 'https://raw.githubusercontent.com/google/shopping_insider/main';
+const SOURCE_REPO = 'https://raw.githubusercontent.com/gfryns/shopping_insider/apps-script-multi-accounts';
 
 /** Definition of the Looker dashboard. */
 /** @type {string} Looker dashboard Id. */
@@ -75,48 +75,119 @@ const GMC_BQ_DT_LOCATIONS = [
 const createOrUpdateDataTransfer = (name, resource) => {
   const datasetId = getDocumentProperty('dataset');
   const versionInfo = resource.attributeValue;
-  const config = {
-    displayName: name,
-    destinationDatasetId: datasetId,
-  }
-  const getFilterFn = (idName) => {
-    return (transferConfig) => {
-      const { dataSourceId, destinationDatasetId, params } = transferConfig;
-      return dataSourceId === config.dataSourceId
-        && destinationDatasetId === config.destinationDatasetId
-        && params[idName] === config.params[idName];
-    };
-  };
-  let filterFn;
+  let allResults = [];
+
   if (name.startsWith('Merchant Center Transfer')) {
-    const merchantId = getDocumentProperty('merchantId');
-    config.dataSourceId = DATA_TRANSFER_SOURCE.GOOGLE_MERCHANT_CENTER;
-    config.params = {
-      merchant_id: merchantId,
-      export_products: true,
-      export_regional_inventories: false,
-      export_local_inventories: false,
-    };
-    filterFn = getFilterFn('merchant_id');
+    const merchantIds = getDocumentProperty('merchantId').split(',').map(id => id.trim());
+    for (const mId of merchantIds) {
+      const config = {
+        displayName: `Merchant Center Transfer - ${mId}`,
+        destinationDatasetId: datasetId,
+        dataSourceId: DATA_TRANSFER_SOURCE.GOOGLE_MERCHANT_CENTER,
+        params: {
+          merchant_id: mId,
+          export_products: true,
+          export_regional_inventories: false,
+          export_local_inventories: false,
+        }
+      };
+      const filterFn = (transferConfig) => {
+        return transferConfig.dataSourceId === config.dataSourceId
+          && transferConfig.destinationDatasetId === config.destinationDatasetId
+          && transferConfig.params.merchant_id === config.params.merchant_id;
+      };
+      allResults.push(gcloud.createOrUpdateDataTransfer(config, datasetId, filterFn, versionInfo));
+    }
   } else if (name.startsWith('Google Ads Transfer')) {
-    const customerId = getDocumentProperty('externalCustomerId');
-    config.dataSourceId = DATA_TRANSFER_SOURCE.GOOGLE_ADS;
-    config.dataRefreshWindowDays = 1;
-    config.params = {
-      table_filter: GOOGLE_ADS_TABLES.join(','),
-      customer_id: customerId,
-      include_pmax: true,
-    };
-    filterFn = getFilterFn('customer_id');
+    const customerIds = getDocumentProperty('externalCustomerId').split(',').map(id => id.trim().replace(/-/g, ''));
+    for (const cId of customerIds) {
+      const config = {
+        displayName: `Google Ads Transfer - ${cId}`,
+        destinationDatasetId: datasetId,
+        dataSourceId: DATA_TRANSFER_SOURCE.GOOGLE_ADS,
+        dataRefreshWindowDays: 1,
+        params: {
+          table_filter: GOOGLE_ADS_TABLES.join(','),
+          customer_id: cId,
+          include_pmax: true,
+        }
+      };
+      const filterFn = (transferConfig) => {
+        return transferConfig.dataSourceId === config.dataSourceId
+          && transferConfig.destinationDatasetId === config.destinationDatasetId
+          && transferConfig.params.customer_id === config.params.customer_id;
+      };
+      allResults.push(gcloud.createOrUpdateDataTransfer(config, datasetId, filterFn, versionInfo));
+    }
   } else {
     return {
       status: RESOURCE_STATUS.ERROR,
       message: `Unknown Data Transfer type: ${name}`,
     };
   }
-  return gcloud.createOrUpdateDataTransfer(
-    config, datasetId, filterFn, versionInfo);
+  
+  const errorResult = allResults.find(r => r.status !== RESOURCE_STATUS.OK);
+  return errorResult || allResults[0];
 }
+
+/**
+ * Custom parameter replacer to handle multiple IDs for SQL IN clauses.
+ */
+const customReplaceSqlParams = (sql, params) => {
+  const formattedParams = Object.assign({}, params);
+  
+  if (params.merchantId) {
+    const ids = params.merchantId.split(',').map(id => `'${id.trim()}'`);
+    formattedParams.merchant_id = `(${ids.join(', ')})`;
+  }
+  if (params.externalCustomerId) {
+    const ids = params.externalCustomerId.split(',').map(id => `'${id.trim().replace(/-/g, '')}'`);
+    formattedParams.external_customer_id = `(${ids.join(', ')})`;
+  }
+  if (params.dataset) {
+    formattedParams.dataset = params.dataset;
+  }
+  if (params.projectId) {
+    formattedParams.project_id = params.projectId;
+  }
+  
+  return replacePythonStyleParameters(sql, formattedParams);
+}
+
+/**
+ * Escapes a string for use in a regular expression.
+ */
+const escapeRegExp = (string) => {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
+ * Expands table names that contain comma-separated IDs into a full list of table names.
+ * Example: "Products_123, 456" becomes "Products_123, Products_456"
+ */
+const fixRawTableNames = (tablesString) => {
+  if (!tablesString) return tablesString;
+  const props = PropertiesService.getDocumentProperties().getProperties();
+  let result = tablesString;
+  
+  if (props.merchantId) {
+    const ids = props.merchantId.split(',');
+    const regex = new RegExp('([a-zA-Z0-9_]+)' + escapeRegExp(props.merchantId), 'g');
+    result = result.replace(regex, (match, prefix) => {
+      return ids.map(id => prefix + id.trim()).join(', ');
+    });
+  }
+  
+  if (props.externalCustomerId) {
+    const ids = props.externalCustomerId.split(',');
+    const regex = new RegExp('([a-zA-Z0-9_]+)' + escapeRegExp(props.externalCustomerId), 'g');
+    result = result.replace(regex, (match, prefix) => {
+      return ids.map(id => prefix + id.trim().replace(/-/g, '')).join(', ');
+    });
+  }
+  
+  return result;
+};
 
 /**
  * Creates or updates a scheduled query.
@@ -131,7 +202,7 @@ const createOrUpdateScheduledQuery = (name, resource) => {
   const versionInfo = resource.attributeValue;
   const query = getExecutableSql(`${SOURCE_REPO}/sql/${sql}`,
     PropertiesService.getDocumentProperties().getProperties(),
-    replacePythonStyleParameters
+    customReplaceSqlParams
   );
   return gcloud.createOrUpdateScheduledQuery(
     displayName, datasetId, query, versionInfo);
@@ -168,8 +239,11 @@ const loadCsvToBigQuery = (tableName, resource) => {
 const createBigQueryViews = (sql, resource) => {
   const datasetId = getDocumentProperty('dataset');
   const url = `${SOURCE_REPO}/sql/${sql}`;
+  const fixedResource = Object.assign({}, resource, {
+    attributeValue: fixRawTableNames(resource.attributeValue)
+  });
   return gcloud.createBigQueryViews(
-    url, resource, datasetId, replacePythonStyleParameters);
+    url, fixedResource, datasetId, customReplaceSqlParams);
 }
 
 /**
@@ -182,7 +256,8 @@ const createBigQueryViews = (sql, resource) => {
  */
 const checkExpectedTables = (_, resource) => {
   const datasetId = getDocumentProperty('dataset');
-  const result = gcloud.checkExpectedTables(resource.attributeValue, datasetId);
+  const fixedAttributeValue = fixRawTableNames(resource.attributeValue);
+  const result = gcloud.checkExpectedTables(fixedAttributeValue, datasetId);
   if (result.status !== RESOURCE_STATUS.OK) {
     return Object.assign({ value: 'Available after installation' }, result);
   }
@@ -213,6 +288,25 @@ MOJO_CONFIG_TEMPLATE.bigQueryView = {
   checkFn: createBigQueryViews,
 };
 
+/**
+ * Clean up account number list.
+ * @param {string} e Account number list.
+ * @return {!CheckResult}
+ */
+const cleanAccountNumberList = (e) => {
+  if (!/^[0-9][0-9-]*[0-9](?:\s*,\s*[0-9][0-9-]*[0-9])*$/.test(e)) {
+    return {
+      status: RESOURCE_STATUS.ERROR,
+      message:
+        "Only digits and dash(-) are allowed in account IDs. They must be separated by commas.",
+    };
+  }
+  return {
+    status: RESOURCE_STATUS.OK,
+    value: e.replaceAll("-", ""),
+  };
+};
+
 /** Solution configurations for Shopping Insider. */
 const SHOPPING_INSIDER_MOJO_CONFIG = {
   sheetName: 'Shopping Insider',
@@ -223,7 +317,7 @@ const SHOPPING_INSIDER_MOJO_CONFIG = {
       category: 'General',
       resource: 'GMC Account Id',
       propertyName: 'merchantId',
-      checkFn: cleanAccountNumber,
+      checkFn: cleanAccountNumberList,
     },
     // {
     //   category: 'General',
@@ -239,7 +333,7 @@ const SHOPPING_INSIDER_MOJO_CONFIG = {
       category: 'General',
       resource: 'Google Ads MCC',
       propertyName: 'externalCustomerId',
-      checkFn: cleanAccountNumber,
+      checkFn: cleanAccountNumberList,
     },
     { template: 'projectId' },
     {
@@ -334,25 +428,25 @@ const SHOPPING_INSIDER_MOJO_CONFIG = {
       value: '6_criteria_view.sql',
       value_link: `${SOURCE_REPO}/sql/6_criteria_view.sql`,
       attributeValue:
-        'adgroup_criteria_view_${externalCustomerId}, pmax_criteria_view_${externalCustomerId}',
+        'adgroup_criteria_view, pmax_criteria_view',
     },
     {
       template: 'bigQueryView',
       value: '7_targeted_products_view.sql',
       value_link: `${SOURCE_REPO}/sql/7_targeted_products_view.sql`,
-      attributeValue: 'product_view_${merchantId}',
+      attributeValue: 'product_view',
     },
     {
       template: 'bigQueryView',
       value: '8_product_detailed_view.sql',
       value_link: `${SOURCE_REPO}/sql/8_product_detailed_view.sql`,
-      attributeValue: 'product_metrics_view_${externalCustomerId}',
+      attributeValue: 'product_metrics_view',
     },
     {
       template: 'bigQueryView',
       value: '9_materialize_product_detailed.sql',
       value_link: `${SOURCE_REPO}/sql/9_materialize_product_detailed.sql`,
-      attributeValue: 'targeted_products_view_${externalCustomerId}, product_detailed_view_${externalCustomerId}',
+      attributeValue: 'targeted_products_view, product_detailed_view',
     },
     {
       template: 'bigQueryView',

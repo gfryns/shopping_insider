@@ -101,19 +101,64 @@ def configure_sql(sql_path: str, query_params: Dict[str, Any]) -> str:
 
   params = {}
   for param_key, param_value in query_params.items():
-    # If given value is list of strings (ex. 'a,b,c'), create tuple of
-    # strings (ex. ('a', 'b', 'c')) to pass to SQL IN operator.
+    # If given value is list of strings (ex. 'a,b,c'), create a comma-separated
+    # list of quoted strings (ex. 'a', 'b', 'c') to pass to SQL IN operator.
     if param_key in ('merchant_id', 'external_customer_id'):
       if isinstance(param_value, str):
-        params[param_key] = tuple(m.strip() for m in param_value.split(','))
+        ids = [m.strip() for m in param_value.split(',')]
       elif isinstance(param_value, (list, tuple)):
-        params[param_key] = tuple(param_value)
+        ids = [str(m) for m in param_value]
       else:
-        params[param_key] = (str(param_value),)
+        ids = [str(param_value)]
+      params[param_key] = ", ".join(f"'{i}'" for i in ids)
     elif isinstance(param_value, str) and ',' in param_value:
       params[param_key] = tuple(param_value.split(','))
     else:
       params[param_key] = param_value
+
+  # Handle wildcard tables on views by generating UNION ALL or specific table references.
+  # This avoids "Views cannot be queried through prefix" error in BigQuery.
+  import re
+  
+  def get_raw_ids(param_key):
+    if param_key not in query_params:
+      return []
+    val = query_params[param_key]
+    if isinstance(val, str):
+      return [v.strip().replace('-', '') for v in val.split(',')]
+    elif isinstance(val, (list, tuple)):
+      return [str(v).replace('-', '') for v in val]
+    else:
+      return [str(val).replace('-', '')]
+
+  raw_customer_ids = get_raw_ids('external_customer_id')
+  raw_merchant_ids = get_raw_ids('merchant_id')
+
+  def replacer(match):
+    table_base = match.group(1)
+    
+    # Determine which IDs to use based on table name prefix
+    if table_base.startswith('ads_'):
+      ids = raw_customer_ids
+    else:
+      ids = raw_merchant_ids
+      
+    if not ids:
+      return match.group(0) # Return original if no IDs available
+      
+    subqueries = []
+    for cid in ids:
+        if not table_base.startswith('ads_'):
+          subqueries.append(
+              f"SELECT *, _PARTITIONTIME, '{cid}' as _TABLE_SUFFIX FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`"
+          )
+        else:
+          subqueries.append(
+              f"SELECT *, '{cid}' as _TABLE_SUFFIX FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`"
+          )
+    return "(" + " UNION ALL ".join(subqueries) + ")"
+
+  sql_script = re.sub(r"`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`", replacer, sql_script)
 
   return sql_script.format(**params)
 

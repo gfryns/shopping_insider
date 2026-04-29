@@ -19,14 +19,14 @@ AS (
   WITH
     BestSellers AS (
       SELECT DISTINCT
-        _PARTITIONDATE AS data_date,
+        DATE(_PARTITIONTIME) AS data_date,
         entity_id,
         country_code AS target_country,
         TRUE AS is_best_seller,
       FROM
         `{project_id}.{dataset}.BestSellersProductClusterWeekly_*`
           AS BestSellers
-      WHERE _TABLE_SUFFIX IN {merchant_id}
+      WHERE _TABLE_SUFFIX IN ({merchant_id})
     ),
     Products AS (
       SELECT
@@ -44,7 +44,7 @@ AS (
     ),
     PriceBenchmarks AS (
       SELECT
-        _PARTITIONDATE AS data_date,
+        DATE(_PARTITIONTIME) AS data_date,
         CONCAT(CAST(merchant_id AS STRING), '|', id) AS unique_product_id,
         report_country_code AS target_country,
         benchmark_price.amount_micros / 1000000 AS price_benchmark_value,
@@ -52,7 +52,7 @@ AS (
         NULL AS price_benchmark_timestamp
       FROM
         `{project_id}.{dataset}.PriceCompetitiveness_*`
-      WHERE _TABLE_SUFFIX IN {merchant_id}
+      WHERE _TABLE_SUFFIX IN ({merchant_id})
     )
   SELECT
     Products AS product,
@@ -78,7 +78,7 @@ AS (
   FROM Products
   LEFT JOIN (
     SELECT DISTINCT product_id, entity_id FROM `{project_id}.{dataset}.BestSellersEntityProductMapping_*`
-    WHERE _TABLE_SUFFIX IN {merchant_id}
+    WHERE _TABLE_SUFFIX IN ({merchant_id})
   )
     USING (product_id)
   LEFT JOIN BestSellers

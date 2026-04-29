@@ -17,7 +17,7 @@
 # The view parse the asset_group_listing_group_filter into multiple columns that will used to join
 # with the GMC data to find the targeted products.
 
-CREATE OR REPLACE VIEW `{project_id}.{dataset}.pmax_criteria_view_{external_customer_id}`
+CREATE OR REPLACE VIEW `{project_id}.{dataset}.pmax_criteria_view`
 AS (
   # Use recursive join to find all the ancestors.
   WITH RECURSIVE
@@ -111,7 +111,8 @@ AS (
         TRIM(LOWER(asset_group_listing_group_filter_case_value_product_brand_value)) AS brand,
         TRIM(LOWER(asset_group_listing_group_filter_case_value_product_item_id_value)) AS offer_id
       FROM
-        `{project_id}.{dataset}.ads_AssetGroupListingGroupFilter_{external_customer_id}`
+        `{project_id}.{dataset}.ads_AssetGroupListingGroupFilter_*`
+      WHERE _TABLE_SUFFIX IN ({external_customer_id})
     ),
     # Aggregates the criteria to be used for "Everything else" by grouping the same parent. At this
     # point, we only know the sibling (same parent), not the grandparent criteria.
@@ -160,7 +161,7 @@ AS (
       FROM
         `{project_id}.{dataset}.ads_AssetGroup_*`
       WHERE
-        _TABLE_SUFFIX IN {external_customer_id}
+        _TABLE_SUFFIX IN ({external_customer_id})
         AND asset_group_status = 'ENABLED'
     ),
     # Find the active campaign.
@@ -170,9 +171,10 @@ AS (
         _LATEST_DATE,
         campaign_id
       FROM
-        `{project_id}.{dataset}.ads_Campaign_{external_customer_id}`
+        `{project_id}.{dataset}.ads_Campaign_*`
       WHERE
         campaign_status = 'ENABLED'
+        AND _TABLE_SUFFIX IN ({external_customer_id})
     ),
     # Get merchant id.
     Merchants AS (
@@ -181,7 +183,7 @@ AS (
         ShoppingProductStats.segments_product_merchant_id AS merchant_id,
         GeoTargets.country_code AS target_country
       FROM
-        `{project_id}.{dataset}.ads_ShoppingProductStats_{external_customer_id}`
+        `{project_id}.{dataset}.ads_ShoppingProductStats_*`
           AS ShoppingProductStats
       INNER JOIN
         `{project_id}.{dataset}.geo_targets` AS GeoTargets
@@ -193,6 +195,7 @@ AS (
               SAFE_OFFSET(1)]
             AS INT64)
           = GeoTargets.parent_id
+      WHERE _TABLE_SUFFIX IN ({external_customer_id})
     ),
     # Get the active criteria only.
     FilteredData AS (
@@ -358,6 +361,4 @@ AS (
   FROM Criteria
   INNER JOIN Merchants
     USING (campaign_id)
-);n_id)
-);SING (campaign_id)
 );

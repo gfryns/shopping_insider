@@ -55,7 +55,7 @@ AS (
       FROM
         `{project_id}.{dataset}.ads_ShoppingProductStats_*`
       WHERE
-        _TABLE_SUFFIX IN {external_customer_id}
+        _TABLE_SUFFIX IN ({external_customer_id})
     )
   SELECT
     ShoppingProductStats._DATA_DATE,
