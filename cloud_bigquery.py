@@ -116,6 +116,35 @@ def configure_sql(sql_path: str, query_params: Dict[str, Any]) -> str:
     else:
       params[param_key] = param_value
 
+  # Handle wildcard tables on views by generating UNION ALL or specific table references.
+  # This avoids "Views cannot be queried through prefix" error in BigQuery.
+  import re
+  
+  raw_customer_ids = []
+  if 'external_customer_id' in query_params:
+    val = query_params['external_customer_id']
+    if isinstance(val, str):
+      raw_customer_ids = [v.strip().replace('-', '') for v in val.split(',')]
+    elif isinstance(val, (list, tuple)):
+      raw_customer_ids = [str(v).replace('-', '') for v in val]
+    else:
+      raw_customer_ids = [str(val).replace('-', '')]
+
+  if raw_customer_ids:
+    def replacer(match):
+      table_base = match.group(1)
+      if len(raw_customer_ids) == 1:
+        return f"`{{project_id}}.{{dataset}}.{table_base}_{raw_customer_ids[0]}`"
+      else:
+        subqueries = []
+        for cid in raw_customer_ids:
+          subqueries.append(
+              f"SELECT *, '{cid}' as _TABLE_SUFFIX FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`"
+          )
+        return "(" + " UNION ALL ".join(subqueries) + ")"
+
+    sql_script = re.sub(r"`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`", replacer, sql_script)
+
   return sql_script.format(**params)
 
 
