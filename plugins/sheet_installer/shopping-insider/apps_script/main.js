@@ -17,7 +17,7 @@
 /** @fileoverview The constants and functions for Shopping Insider. */
 
 /** @type {string} Http url base for SQL files. */
-const SOURCE_REPO = 'https://raw.githubusercontent.com/gfryns/shopping_insider/apps-script-multi-accounts';
+const SOURCE_REPO = 'https://raw.githubusercontent.com/gfryns/shopping_insider/multi-accounts';
 
 /** Definition of the Looker dashboard. */
 /** @type {string} Looker dashboard Id. */
@@ -136,13 +136,20 @@ const createOrUpdateDataTransfer = (name, resource) => {
 const customReplaceSqlParams = (sql, params) => {
   const formattedParams = Object.assign({}, params);
   
-  if (params.merchantId) {
-    const ids = params.merchantId.split(',').map(id => `'${id.trim()}'`);
-    formattedParams.merchant_id = `(${ids.join(', ')})`;
+  const merchantId = params.merchantId || params.merchant_id;
+  if (merchantId) {
+    const ids = merchantId.split(',').map(id => `'${id.trim()}'`);
+    const quotedList = `${ids.join(', ')}`;
+    formattedParams.merchant_id = quotedList;
+    formattedParams.merchantId = quotedList;
   }
-  if (params.externalCustomerId) {
-    const ids = params.externalCustomerId.split(',').map(id => `'${id.trim().replace(/-/g, '')}'`);
-    formattedParams.external_customer_id = `(${ids.join(', ')})`;
+  
+  const externalCustomerId = params.externalCustomerId || params.external_customer_id;
+  if (externalCustomerId) {
+    const ids = externalCustomerId.split(',').map(id => `'${id.trim().replace(/-/g, '')}'`);
+    const quotedList = `${ids.join(', ')}`;
+    formattedParams.external_customer_id = quotedList;
+    formattedParams.externalCustomerId = quotedList;
   }
   if (params.dataset) {
     formattedParams.dataset = params.dataset;
