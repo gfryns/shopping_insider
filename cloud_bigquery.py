@@ -146,15 +146,12 @@ def configure_sql(sql_path: str, query_params: Dict[str, Any]) -> str:
     if not ids:
       return match.group(0) # Return original if no IDs available
       
-    if len(ids) == 1:
-      return f"`{{project_id}}.{{dataset}}.{table_base}_{ids[0]}`"
-    else:
-      subqueries = []
-      for cid in ids:
-        subqueries.append(
-            f"SELECT *, _PARTITIONTIME, '{cid}' as _TABLE_SUFFIX FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`"
-        )
-      return "(" + " UNION ALL ".join(subqueries) + ")"
+    subqueries = []
+    for cid in ids:
+      subqueries.append(
+          f"SELECT *, _PARTITIONTIME, '{cid}' as _TABLE_SUFFIX FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`"
+      )
+    return "(" + " UNION ALL ".join(subqueries) + ")"
 
   sql_script = re.sub(r"`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`", replacer, sql_script)
 
