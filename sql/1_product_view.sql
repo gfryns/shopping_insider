@@ -23,13 +23,13 @@ AS (
   WITH
     Products AS (
       SELECT
-        *, _PARTITIONTIME, DATE(_PARTITIONTIME) AS _PARTITIONDATE
+        *, _PARTITIONDATE
        FROM `{project_id}.{dataset}.Products_*`
       WHERE _TABLE_SUFFIX IN ({merchant_id})
     ),
     ApprovedOffer AS (
       SELECT DISTINCT
-        DATE(_PARTITIONTIME) AS _PARTITIONDATE,
+        _PARTITIONDATE,
         product_id,
         merchant_id,
         target_country
@@ -40,7 +40,7 @@ AS (
     ),
     PendingOffer AS (
       SELECT DISTINCT
-        DATE(_PARTITIONTIME) AS _PARTITIONDATE,
+        _PARTITIONDATE,
         product_id,
         merchant_id,
         target_country
@@ -51,7 +51,7 @@ AS (
     ),
     DisapprovedOffer AS (
       SELECT DISTINCT
-        DATE(_PARTITIONTIME) AS _PARTITIONDATE,
+        _PARTITIONDATE,
         product_id,
         merchant_id,
         target_country
@@ -62,7 +62,7 @@ AS (
     ),
     OfferIssue AS (
       SELECT
-        DATE(_PARTITIONTIME) AS _PARTITIONDATE,
+        _PARTITIONDATE,
         product_id,
         merchant_id,
         target_country,
@@ -84,7 +84,7 @@ AS (
     ),
     MultiChannelTable AS (
       SELECT DISTINCT
-        DATE(_PARTITIONTIME) AS _PARTITIONDATE,
+        _PARTITIONDATE,
         merchant_id,
         product_id
       FROM
@@ -97,13 +97,13 @@ AS (
     ),
     LatestDate AS (
       SELECT
-        MAX(DATE(_PARTITIONTIME)) AS latest_date
+        MAX(_PARTITIONDATE) AS latest_date
       FROM
         Products
     ),
     ProductStatus AS (
       SELECT
-        DATE(Products._PARTITIONTIME) AS _DATA_DATE,
+        Products._PARTITIONDATE AS _DATA_DATE,
         LatestDate.latest_date AS _LATEST_DATE,
         Products.product_id,
         Products.merchant_id,
