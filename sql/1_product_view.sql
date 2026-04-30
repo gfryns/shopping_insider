@@ -170,13 +170,21 @@ AS (
         Products,
         LatestDate
       LEFT JOIN ApprovedOffer
-        USING (_PARTITIONDATE, product_id, merchant_id)
+        ON DATE(Products._PARTITIONTIME_COL) = ApprovedOffer._PARTITIONDATE
+        AND Products.product_id = ApprovedOffer.product_id
+        AND Products.merchant_id = ApprovedOffer.merchant_id
       LEFT JOIN PendingOffer
-        USING (_PARTITIONDATE, product_id, merchant_id)
+        ON DATE(Products._PARTITIONTIME_COL) = PendingOffer._PARTITIONDATE
+        AND Products.product_id = PendingOffer.product_id
+        AND Products.merchant_id = PendingOffer.merchant_id
       LEFT JOIN DisapprovedOffer
-        USING (_PARTITIONDATE, product_id, merchant_id)
+        ON DATE(Products._PARTITIONTIME_COL) = DisapprovedOffer._PARTITIONDATE
+        AND Products.product_id = DisapprovedOffer.product_id
+        AND Products.merchant_id = DisapprovedOffer.merchant_id
       LEFT JOIN MultiChannelTable
-        USING (_PARTITIONDATE, product_id, merchant_id)
+        ON DATE(Products._PARTITIONTIME_COL) = MultiChannelTable._PARTITIONDATE
+        AND Products.product_id = MultiChannelTable.product_id
+        AND Products.merchant_id = MultiChannelTable.merchant_id
 
     )
   SELECT
