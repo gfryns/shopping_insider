@@ -21,6 +21,22 @@ CREATE OR REPLACE VIEW `{project_id}.{dataset}.adgroup_criteria_view`
 AS (
   WITH
     # Retrieves the 'ENABLED' & 'SHOPPING' criteria.
+    Campaigns AS (
+      SELECT * FROM `{project_id}.{dataset}.ads_Campaign_*`
+      WHERE _TABLE_SUFFIX IN ({external_customer_id})
+    ),
+    AdGroups AS (
+      SELECT * FROM `{project_id}.{dataset}.ads_AdGroup_*`
+      WHERE _TABLE_SUFFIX IN ({external_customer_id})
+    ),
+    AdGroupCriteria AS (
+      SELECT * FROM `{project_id}.{dataset}.ads_AdGroupCriterion_*`
+      WHERE _TABLE_SUFFIX IN ({external_customer_id})
+    ),
+    ShoppingProductStats AS (
+      SELECT * FROM `{project_id}.{dataset}.ads_ShoppingProductStats_*`
+      WHERE _TABLE_SUFFIX IN ({external_customer_id})
+    ),
     Criteria AS (
       SELECT
         Campaigns._DATA_DATE,
@@ -36,21 +52,15 @@ AS (
         AdGroupCriteria.ad_group_criterion_display_name AS display_name,
         # Split the individual criterion
         SPLIT(AdGroupCriteria.ad_group_criterion_display_name, '&+') AS sub_criteria,
-      FROM
-        `{project_id}.{dataset}.ads_Campaign_*` AS Campaigns
-      INNER JOIN
-        `{project_id}.{dataset}.ads_AdGroup_*` AS AdGroups
+      FROM Campaigns
+      INNER JOIN AdGroups
         USING (campaign_id, _DATA_DATE, _LATEST_DATE)
-      INNER JOIN
-        `{project_id}.{dataset}.ads_AdGroupCriterion_*` AS AdGroupCriteria
+      INNER JOIN AdGroupCriteria
         USING (ad_group_id, _DATA_DATE, _LATEST_DATE)
       WHERE
         Campaigns.campaign_status = 'ENABLED'
         AND AdGroups.ad_group_status = 'ENABLED'
         AND AdGroups.ad_group_type IN ('SHOPPING_PRODUCT_ADS', 'SHOPPING_SMART_ADS')
-        AND Campaigns._TABLE_SUFFIX IN ({external_customer_id})
-        AND AdGroups._TABLE_SUFFIX IN ({external_customer_id})
-        AND AdGroupCriteria._TABLE_SUFFIX IN ({external_customer_id})
     ),
     # Unnest the criterion into each row.
     FlattenCriteria AS (
@@ -409,9 +419,7 @@ AS (
         ShoppingProductStats.campaign_id,
         ShoppingProductStats.segments_product_merchant_id AS merchant_id,
         GeoTargets.country_code AS target_country
-      FROM
-        `{project_id}.{dataset}.ads_ShoppingProductStats_*`
-          AS ShoppingProductStats
+      FROM ShoppingProductStats
       INNER JOIN
         `{project_id}.{dataset}.geo_targets` AS GeoTargets
         ON
@@ -422,8 +430,6 @@ AS (
               SAFE_OFFSET(1)]
             AS INT64)
           = GeoTargets.parent_id
-      WHERE
-        ShoppingProductStats._TABLE_SUFFIX IN ({external_customer_id})
     )
   SELECT
     *

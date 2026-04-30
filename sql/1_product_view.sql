@@ -21,6 +21,12 @@
 CREATE OR REPLACE VIEW `{project_id}.{dataset}.product_view`
 AS (
   WITH
+    Products AS (
+      SELECT
+        *, _PARTITIONTIME, DATE(_PARTITIONTIME) AS _PARTITIONDATE
+       FROM `{project_id}.{dataset}.Products_*`
+      WHERE _TABLE_SUFFIX IN ({merchant_id})
+    ),
     ApprovedOffer AS (
       SELECT DISTINCT
         DATE(_PARTITIONTIME) AS _PARTITIONDATE,
@@ -28,11 +34,9 @@ AS (
         merchant_id,
         target_country
       FROM
-        `{project_id}.{dataset}.Products_*` AS Products,
+        Products,
         Products.destinations,
         destinations.approved_countries AS target_country
-      WHERE
-        _TABLE_SUFFIX IN ({merchant_id})
     ),
     PendingOffer AS (
       SELECT DISTINCT
@@ -41,11 +45,9 @@ AS (
         merchant_id,
         target_country
       FROM
-        `{project_id}.{dataset}.Products_*` AS Products,
+        Products,
         Products.destinations,
         destinations.pending_countries AS target_country
-      WHERE
-        _TABLE_SUFFIX IN ({merchant_id})
     ),
     DisapprovedOffer AS (
       SELECT DISTINCT
@@ -54,11 +56,9 @@ AS (
         merchant_id,
         target_country
       FROM
-        `{project_id}.{dataset}.Products_*` AS Products,
+        Products,
         Products.destinations,
         destinations.disapproved_countries AS target_country
-      WHERE
-        _TABLE_SUFFIX IN ({merchant_id})
     ),
     OfferIssue AS (
       SELECT
@@ -76,11 +76,9 @@ AS (
           IF(LOWER(issues.servability) = 'unaffected', issues.short_description, NULL), ', ')
           AS warning_issues
       FROM
-        `{project_id}.{dataset}.Products_*` AS Products,
+        Products,
         Products.issues,
         issues.applicable_countries AS target_country
-      WHERE
-        _TABLE_SUFFIX IN ({merchant_id})
       GROUP BY
         1, 2, 3, 4
     ),
@@ -90,9 +88,7 @@ AS (
         merchant_id,
         product_id
       FROM
-        `{project_id}.{dataset}.Products_*`
-      WHERE
-        _TABLE_SUFFIX IN ({merchant_id})
+        Products
       GROUP BY
         _PARTITIONDATE,
         merchant_id,
@@ -103,9 +99,7 @@ AS (
       SELECT
         MAX(DATE(_PARTITIONTIME)) AS latest_date
       FROM
-        `{project_id}.{dataset}.Products_*`
-      WHERE
-        _TABLE_SUFFIX IN ({merchant_id})
+        Products
     ),
     ProductStatus AS (
       SELECT
@@ -173,8 +167,8 @@ AS (
         IF(MultiChannelTable.product_id IS NULL, 'single_channel', 'multi_channel')
           AS channel_exclusivity
       FROM
-        (SELECT *, _TABLE_SUFFIX, DATE(_PARTITIONTIME) AS _PARTITIONDATE FROM `{project_id}.{dataset}.Products_*`) AS Products
-      CROSS JOIN LatestDate
+        Products,
+        LatestDate
       LEFT JOIN ApprovedOffer
         USING (_PARTITIONDATE, product_id, merchant_id)
       LEFT JOIN PendingOffer
@@ -183,8 +177,7 @@ AS (
         USING (_PARTITIONDATE, product_id, merchant_id)
       LEFT JOIN MultiChannelTable
         USING (_PARTITIONDATE, product_id, merchant_id)
-      WHERE
-        _TABLE_SUFFIX IN ({merchant_id})
+
     )
   SELECT
     ProductStatus.*,
