@@ -173,8 +173,8 @@ AS (
         IF(MultiChannelTable.product_id IS NULL, 'single_channel', 'multi_channel')
           AS channel_exclusivity
       FROM
-        (SELECT *, _TABLE_SUFFIX, DATE(_PARTITIONTIME) AS _PARTITIONDATE FROM `{project_id}.{dataset}.Products_*`) AS Products,
-        LatestDate
+        (SELECT *, _TABLE_SUFFIX, DATE(_PARTITIONTIME) AS _PARTITIONDATE FROM `{project_id}.{dataset}.Products_*`) AS Products
+      CROSS JOIN LatestDate
       LEFT JOIN ApprovedOffer
         USING (_PARTITIONDATE, product_id, merchant_id)
       LEFT JOIN PendingOffer
