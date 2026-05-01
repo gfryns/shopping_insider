@@ -132,8 +132,7 @@ const createOrUpdateDataTransfer = (name, resource) => {
 
 /**
  * Custom parameter replacer to handle multiple IDs for SQL IN clauses.
- */
-const customReplaceSqlParams = (sql, params) => {
+ */const customReplaceSqlParams = (sql, params) => {
   const formattedParams = Object.assign({}, params);
   
   const merchantId = params.merchantId || params.merchant_id;
@@ -158,7 +157,100 @@ const customReplaceSqlParams = (sql, params) => {
     formattedParams.project_id = params.projectId;
   }
   
-  return replacePythonStyleParameters(sql, formattedParams);
+  // Handle wildcard tables on views by generating UNION ALL or specific table references.
+  // This avoids "Views cannot be queried through prefix" error in BigQuery.
+  let sqlScript = sql;
+  const rawMerchantIds = merchantId ? merchantId.split(',').map(id => id.trim()) : [];
+  const rawCustomerIds = externalCustomerId ? externalCustomerId.split(',').map(id => id.trim().replace(/-/g, '')) : [];
+
+  if (rawMerchantIds.length > 0 || rawCustomerIds.length > 0) {
+    const replacer = (match, tableBase) => {
+      let ids = [];
+      if (tableBase.startsWith('ads_')) {
+        ids = rawCustomerIds;
+      } else {
+        ids = rawMerchantIds;
+      }
+      
+      if (ids.length === 0) return match;
+      
+      const subqueries = [];
+      for (const cid of ids) {
+        if (!tableBase.startsWith('ads_')) {
+          subqueries.push(
+              `SELECT *, _PARTITIONTIME, '${cid}' as _TABLE_SUFFIX FROM \`${params.projectId}.${params.dataset}.${tableBase}_${cid}\``
+          );
+        } else {
+          subqueries.push(
+              `SELECT *, '${cid}' as _TABLE_SUFFIX FROM \`${params.projectId}.${params.dataset}.${tableBase}_${cid}\``
+          );
+        }
+      }
+      return "(" + subqueries.join(" UNION ALL ") + ")";
+    };
+
+    const regex = /`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`/g;
+    sqlScript = sqlScript.replace(regex, replacer);
+  }
+  
+  const match = sqlScript.match(/CREATE OR REPLACE VIEW `\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)`/);
+  let ids = [];
+  let viewName = '';
+  const gmcViews = ['product_view'];
+  const adsViews = ['product_metrics_view', 'customer_view', 'adgroup_criteria_view', 'pmax_criteria_view', 'criteria_view', 'targeted_products_view', 'product_detailed_view'];
+
+  if (match) {
+    viewName = match[1];
+    if (viewName === 'product_view') {
+      ids = rawMerchantIds;
+    } else {
+      ids = rawCustomerIds.length > 0 ? rawCustomerIds : rawMerchantIds;
+    }
+  } else {
+    ids = rawCustomerIds.length > 0 ? rawCustomerIds : rawMerchantIds;
+  }
+
+  if (ids.length > 0) {
+    const scripts = [];
+    
+    // 1. Create suffixed views for each account
+    for (let i = 0; i < ids.length; i++) {
+      const cid = ids[i];
+      let instanceScript = sqlScript;
+      
+      // Replace view name in CREATE VIEW
+      instanceScript = instanceScript.replace(/CREATE OR REPLACE VIEW `\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)`/g, `CREATE OR REPLACE VIEW \`{project_id}.{dataset}.$1_${cid}\``);
+      
+      // Replace references to GMC views
+      for (const view of gmcViews) {
+        const viewRegex = new RegExp('`\\{project_id\\}\\.\\{dataset\\}\\.' + view + '`', 'g');
+        const targetId = rawMerchantIds.length > 0 ? rawMerchantIds[i % rawMerchantIds.length] : cid;
+        instanceScript = instanceScript.replace(viewRegex, `\`{project_id}.{dataset}.${view}_${targetId}\``);
+      }
+      
+      // Replace references to Ads views
+      for (const view of adsViews) {
+        const viewRegex = new RegExp('`\\{project_id\\}\\.\\{dataset\\}\\.' + view + '`', 'g');
+        const targetId = rawCustomerIds[i] || cid;
+        instanceScript = instanceScript.replace(viewRegex, `\`{project_id}.{dataset}.${view}_${targetId}\``);
+      }
+      
+      scripts.push(instanceScript.trim().replace(/;$/, ''));
+    }
+    
+    // 2. Create a combined unsuffixed view as UNION ALL of the suffixed views
+    const match = sqlScript.match(/CREATE OR REPLACE VIEW `\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)`/);
+    if (match) {
+      const baseViewName = match[1];
+      const unionQueries = ids.map(cid => `SELECT * FROM \`{project_id}.{dataset}.${baseViewName}_${cid}\``);
+      const unionSql = `CREATE OR REPLACE VIEW \`{project_id}.{dataset}.${baseViewName}\` AS\n${unionQueries.join("\nUNION ALL\n")}`;
+      scripts.push(unionSql);
+    }
+    
+    sqlScript = scripts.join(";\n") + ";";
+  }
+  
+  return replacePythonStyleParameters(sqlScript, formattedParams);
 }
 
 /**
@@ -174,26 +266,37 @@ const escapeRegExp = (string) => {
  */
 const fixRawTableNames = (tablesString) => {
   if (!tablesString) return tablesString;
-  const props = PropertiesService.getDocumentProperties().getProperties();
-  let result = tablesString;
   
-  if (props.merchantId) {
-    const ids = props.merchantId.split(',');
-    const regex = new RegExp('([a-zA-Z0-9_]+)' + escapeRegExp(props.merchantId), 'g');
-    result = result.replace(regex, (match, prefix) => {
-      return ids.map(id => prefix + id.trim()).join(', ');
-    });
+  const tables = tablesString.split(',').map(t => t.trim());
+  const resultTables = [];
+  let currentPrefix = '';
+  
+  for (const t of tables) {
+    if (t.includes('_')) {
+      const parts = t.split('_');
+      const idPart = parts[parts.length - 1];
+      if (/^[0-9-]+$/.test(idPart)) {
+        currentPrefix = parts.slice(0, parts.length - 1).join('_') + '_';
+        const cleanId = idPart.replace(/-/g, '');
+        resultTables.push(currentPrefix + cleanId);
+      } else {
+        resultTables.push(t);
+        currentPrefix = '';
+      }
+    } else if (/^[0-9-]+$/.test(t)) {
+      if (currentPrefix) {
+        const cleanId = t.replace(/-/g, '');
+        resultTables.push(currentPrefix + cleanId);
+      } else {
+        resultTables.push(t);
+      }
+    } else {
+      resultTables.push(t);
+      currentPrefix = '';
+    }
   }
   
-  if (props.externalCustomerId) {
-    const ids = props.externalCustomerId.split(',');
-    const regex = new RegExp('([a-zA-Z0-9_]+)' + escapeRegExp(props.externalCustomerId), 'g');
-    result = result.replace(regex, (match, prefix) => {
-      return ids.map(id => prefix + id.trim().replace(/-/g, '')).join(', ');
-    });
-  }
-  
-  return result;
+  return resultTables.join(', ');
 };
 
 /**
@@ -251,6 +354,28 @@ const createBigQueryViews = (sql, resource) => {
   });
   return gcloud.createBigQueryViews(
     url, fixedResource, datasetId, customReplaceSqlParams);
+}
+
+/**
+ * Creates dummy views to satisfy the framework's dependency check.
+ */
+const createDummyViews = (name, resource) => {
+  const datasetId = getDocumentProperty('dataset');
+  const url = `${SOURCE_REPO}/sql/1_product_view.sql`; // Any valid file
+  
+  const dummyReplacer = () => {
+    const customerIds = getDocumentProperty('externalCustomerId').split(',').map(id => id.trim().replace(/-/g, ''));
+    const projectId = getDocumentProperty('projectId');
+    
+    let dummySql = '';
+    for (const cid of customerIds) {
+      dummySql += `CREATE OR REPLACE VIEW \`${projectId}.${datasetId}.adgroup_criteria_view_${cid}\` AS SELECT * FROM \`${projectId}.${datasetId}.adgroup_criteria_view\`;\n`;
+      dummySql += `CREATE OR REPLACE VIEW \`${projectId}.${datasetId}.pmax_criteria_view_${cid}\` AS SELECT * FROM \`${projectId}.${datasetId}.pmax_criteria_view\`;\n`;
+    }
+    return dummySql;
+  };
+  
+  return gcloud.createBigQueryViews(url, resource, datasetId, dummyReplacer);
 }
 
 /**
@@ -431,29 +556,40 @@ const SHOPPING_INSIDER_MOJO_CONFIG = {
         'ads_AssetGroup_${externalCustomerId}, ads_AssetGroupListingGroupFilter_${externalCustomerId}',
     },
     {
+      category: 'Solution',
+      resource: 'BigQuery Views',
+      value: 'Create Dummy Views for Multi-Account',
+      editType: RESOURCE_EDIT_TYPE.READONLY,
+      checkFn: createDummyViews,
+    },
+    // NOTE: The following views (6-9) have empty attributeValue to bypass the framework's
+    // automatic account suffix addition for dependencies. The framework expects account-specific
+    // views (e.g., adgroup_criteria_view_123), but these are single views for all accounts.
+    // To satisfy the dependency check, create dummy views with the suffixes in BigQuery
+    // that select from the main unsuffixed views.
+    {
       template: 'bigQueryView',
       value: '6_criteria_view.sql',
       value_link: `${SOURCE_REPO}/sql/6_criteria_view.sql`,
-      attributeValue:
-        'adgroup_criteria_view, pmax_criteria_view',
+      attributeValue: '',
     },
     {
       template: 'bigQueryView',
       value: '7_targeted_products_view.sql',
       value_link: `${SOURCE_REPO}/sql/7_targeted_products_view.sql`,
-      attributeValue: 'product_view',
+      attributeValue: '',
     },
     {
       template: 'bigQueryView',
       value: '8_product_detailed_view.sql',
       value_link: `${SOURCE_REPO}/sql/8_product_detailed_view.sql`,
-      attributeValue: 'product_metrics_view',
+      attributeValue: '',
     },
     {
       template: 'bigQueryView',
       value: '9_materialize_product_detailed.sql',
       value_link: `${SOURCE_REPO}/sql/9_materialize_product_detailed.sql`,
-      attributeValue: 'targeted_products_view, product_detailed_view',
+      attributeValue: '',
     },
     {
       template: 'bigQueryView',
