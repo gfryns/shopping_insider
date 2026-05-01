@@ -64,8 +64,8 @@ AS (
     ShoppingProductStats.merchant_id,
     ShoppingProductStats.channel,
     ShoppingProductStats.offer_id,
-    LanguageCodes.language_code,
-    GeoTargets.country_code AS target_country,
+    COALESCE(LanguageCodes.language_code, 'unknown') AS language_code,
+    COALESCE(GeoTargets.country_code, 'unknown') AS target_country,
     SUM(ShoppingProductStats.impressions) AS impressions,
     SUM(ShoppingProductStats.clicks) AS clicks,
     SAFE_DIVIDE(SUM(ShoppingProductStats.cost), 1e6) AS cost,
@@ -73,11 +73,11 @@ AS (
     SUM(ShoppingProductStats.conversions_value) AS conversions_value
   FROM
     ShoppingProductStats
-  INNER JOIN
+  LEFT JOIN
     GeoTargets
     ON
       GeoTargets.parent_id = ShoppingProductStats.country_criterion_id
-  INNER JOIN
+  LEFT JOIN
     LanguageCodes
     ON LanguageCodes.criterion_id = ShoppingProductStats.language_criterion_id
   GROUP BY 1, 2, 3, 4, 5, 6, 7, 8

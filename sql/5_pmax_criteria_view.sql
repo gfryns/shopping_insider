@@ -181,11 +181,11 @@ AS (
       SELECT DISTINCT
         ShoppingProductStats.campaign_id,
         ShoppingProductStats.segments_product_merchant_id AS merchant_id,
-        GeoTargets.country_code AS target_country
+        COALESCE(GeoTargets.country_code, 'unknown') AS target_country
       FROM
         `{project_id}.{dataset}.ads_ShoppingProductStats_*`
           AS ShoppingProductStats
-      INNER JOIN
+      LEFT JOIN
         `{project_id}.{dataset}.geo_targets` AS GeoTargets
         ON
           CAST(

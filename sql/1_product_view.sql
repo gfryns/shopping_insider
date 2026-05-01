@@ -119,7 +119,8 @@ AS (
         COALESCE(
           ApprovedOffer.target_country,
           PendingOffer.target_country,
-          DisapprovedOffer.target_country) AS target_country,
+          DisapprovedOffer.target_country,
+          'unknown') AS target_country,
         Products.channel,
         Products.expiration_date,
         Products.google_expiration_date,
