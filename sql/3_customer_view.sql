@@ -26,5 +26,5 @@ AS (
   FROM
     `{project_id}.{dataset}.ads_Customer_*`
   WHERE
-    _TABLE_SUFFIX IN ({external_customer_id})
+    cid IN ({external_customer_id})
 );

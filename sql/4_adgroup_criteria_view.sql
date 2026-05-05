@@ -23,19 +23,19 @@ AS (
     # Retrieves the 'ENABLED' & 'SHOPPING' criteria.
     Campaigns AS (
       SELECT * FROM `{project_id}.{dataset}.ads_Campaign_*`
-      WHERE _TABLE_SUFFIX IN ({external_customer_id})
+      WHERE cid IN ({external_customer_id})
     ),
     AdGroups AS (
       SELECT * FROM `{project_id}.{dataset}.ads_AdGroup_*`
-      WHERE _TABLE_SUFFIX IN ({external_customer_id})
+      WHERE cid IN ({external_customer_id})
     ),
     AdGroupCriteria AS (
       SELECT * FROM `{project_id}.{dataset}.ads_AdGroupCriterion_*`
-      WHERE _TABLE_SUFFIX IN ({external_customer_id})
+      WHERE cid IN ({external_customer_id})
     ),
     ShoppingProductStats AS (
       SELECT * FROM `{project_id}.{dataset}.ads_ShoppingProductStats_*`
-      WHERE _TABLE_SUFFIX IN ({external_customer_id})
+      WHERE cid IN ({external_customer_id})
     ),
     Criteria AS (
       SELECT

@@ -26,7 +26,7 @@ AS (
       FROM
         `{project_id}.{dataset}.BestSellersProductClusterWeekly_*`
           AS BestSellers
-      WHERE _TABLE_SUFFIX IN ({merchant_id})
+      WHERE cid IN ({merchant_id})
     ),
     Products AS (
       SELECT
@@ -52,7 +52,7 @@ AS (
         NULL AS price_benchmark_timestamp
       FROM
         `{project_id}.{dataset}.PriceCompetitiveness_*`
-      WHERE _TABLE_SUFFIX IN ({merchant_id})
+      WHERE cid IN ({merchant_id})
     )
   SELECT
     Products AS product,
@@ -78,7 +78,7 @@ AS (
   FROM Products
   LEFT JOIN (
     SELECT DISTINCT product_id, entity_id FROM `{project_id}.{dataset}.BestSellersEntityProductMapping_*`
-    WHERE _TABLE_SUFFIX IN ({merchant_id})
+    WHERE cid IN ({merchant_id})
   )
     USING (product_id)
   LEFT JOIN BestSellers

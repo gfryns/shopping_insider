@@ -29,7 +29,7 @@ AS (
     MaxDataDate AS (
       SELECT
         MAX(_DATA_DATE) AS _DATA_DATE
-      FROM `{project_id}.{dataset}.targeted_products_view`
+      FROM `{project_id}.{dataset}.product_detailed_view`
     )
   SELECT
     *

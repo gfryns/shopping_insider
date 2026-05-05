@@ -178,11 +178,11 @@ const createOrUpdateDataTransfer = (name, resource) => {
       for (const cid of ids) {
         if (!tableBase.startsWith('ads_')) {
           subqueries.push(
-              `SELECT *, _PARTITIONTIME, '${cid}' as _TABLE_SUFFIX FROM \`${params.projectId}.${params.dataset}.${tableBase}_${cid}\``
+              `SELECT *, _PARTITIONTIME, '${cid}' as cid FROM \`${params.projectId}.${params.dataset}.${tableBase}_${cid}\``
           );
         } else {
           subqueries.push(
-              `SELECT *, '${cid}' as _TABLE_SUFFIX FROM \`${params.projectId}.${params.dataset}.${tableBase}_${cid}\``
+              `SELECT *, '${cid}' as cid FROM \`${params.projectId}.${params.dataset}.${tableBase}_${cid}\``
           );
         }
       }

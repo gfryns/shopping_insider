@@ -150,11 +150,11 @@ def configure_sql(sql_path: str, query_params: Dict[str, Any]) -> str:
     for cid in ids:
         if not table_base.startswith('ads_'):
           subqueries.append(
-              f"SELECT *, _PARTITIONTIME, '{cid}' as _TABLE_SUFFIX FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`"
+              f"SELECT *, _PARTITIONTIME, '{cid}' as cid FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`"
           )
         else:
           subqueries.append(
-              f"SELECT *, '{cid}' as _TABLE_SUFFIX FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`"
+              f"SELECT *, '{cid}' as cid FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`"
           )
     return "(" + " UNION ALL ".join(subqueries) + ")"
 

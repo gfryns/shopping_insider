@@ -112,7 +112,7 @@ AS (
         TRIM(LOWER(asset_group_listing_group_filter_case_value_product_item_id_value)) AS offer_id
       FROM
         `{project_id}.{dataset}.ads_AssetGroupListingGroupFilter_*`
-      WHERE _TABLE_SUFFIX IN ({external_customer_id})
+      WHERE cid IN ({external_customer_id})
     ),
     # Aggregates the criteria to be used for "Everything else" by grouping the same parent. At this
     # point, we only know the sibling (same parent), not the grandparent criteria.
@@ -161,7 +161,7 @@ AS (
       FROM
         `{project_id}.{dataset}.ads_AssetGroup_*`
       WHERE
-        _TABLE_SUFFIX IN ({external_customer_id})
+        cid IN ({external_customer_id})
         AND asset_group_status = 'ENABLED'
     ),
     # Find the active campaign.
@@ -174,7 +174,7 @@ AS (
         `{project_id}.{dataset}.ads_Campaign_*`
       WHERE
         campaign_status = 'ENABLED'
-        AND _TABLE_SUFFIX IN ({external_customer_id})
+        AND cid IN ({external_customer_id})
     ),
     # Get merchant id.
     Merchants AS (
@@ -195,7 +195,7 @@ AS (
               SAFE_OFFSET(1)]
             AS INT64)
           = GeoTargets.parent_id
-      WHERE _TABLE_SUFFIX IN ({external_customer_id})
+      WHERE cid IN ({external_customer_id})
     ),
     # Get the active criteria only.
     FilteredData AS (
