@@ -45,10 +45,10 @@ WITH
       `{project_id}.{dataset}.product_view` AS ProductView
       ON
         ProductMetricsView.merchant_id = ProductView.merchant_id
+        AND LOWER(ProductMetricsView.offer_id) = LOWER(ProductView.offer_id)
         AND LOWER(ProductMetricsView.channel) = LOWER(ProductView.channel)
         AND LOWER(ProductMetricsView.language_code) = LOWER(ProductView.content_language)
-        AND LOWER(ProductMetricsView.target_country) = LOWER(ProductView.target_country)
-        AND LOWER(ProductMetricsView.offer_id) = LOWER(ProductView.offer_id)
+        AND COALESCE(ProductMetricsView.segments_product_country, '') = COALESCE(ProductView.feed_label, '')
         AND ProductMetricsView._DATA_DATE
           BETWEEN DATE_SUB(ProductView._DATA_DATE, INTERVAL 30 DAY)
           AND ProductView._DATA_DATE

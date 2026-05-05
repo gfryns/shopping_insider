@@ -109,6 +109,7 @@ AS (
         Products.merchant_id,
         Products.aggregator_id,
         Products.offer_id,
+        Products.feed_label,
         Products.title,
         Products.description,
         Products.link,

@@ -43,6 +43,8 @@ AS (
         segments_product_merchant_id AS merchant_id,
         segments_product_channel AS channel,
         segments_product_item_id AS offer_id,
+        segments_product_country,
+        segments_product_language,
         CAST(SPLIT(segments_product_country, '/')[SAFE_OFFSET(1)] AS INT64)
           AS country_criterion_id,
         CAST(SPLIT(segments_product_language, '/')[SAFE_OFFSET(1)] AS INT64)
@@ -64,6 +66,8 @@ AS (
     ShoppingProductStats.merchant_id,
     ShoppingProductStats.channel,
     ShoppingProductStats.offer_id,
+    ShoppingProductStats.segments_product_country,
+    ShoppingProductStats.segments_product_language,
     LanguageCodes.language_code,
     GeoTargets.country_code AS target_country,
     SUM(ShoppingProductStats.impressions) AS impressions,
@@ -73,12 +77,12 @@ AS (
     SUM(ShoppingProductStats.conversions_value) AS conversions_value
   FROM
     ShoppingProductStats
-  INNER JOIN
+  LEFT JOIN
     GeoTargets
     ON
       GeoTargets.parent_id = ShoppingProductStats.country_criterion_id
   INNER JOIN
     LanguageCodes
     ON LanguageCodes.criterion_id = ShoppingProductStats.language_criterion_id
-  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
 );
