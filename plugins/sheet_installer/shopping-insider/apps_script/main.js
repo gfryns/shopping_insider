@@ -186,7 +186,7 @@ const createOrUpdateDataTransfer = (name, resource) => {
           );
         }
       }
-      return "(" + subqueries.join(" UNION ALL ") + ")";
+      return "(" + subqueries.join(" UNION ALL ") + ") AS " + tableBase + "_source";
     };
 
     const regex = /`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`/g;
