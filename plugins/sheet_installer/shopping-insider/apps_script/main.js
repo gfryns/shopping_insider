@@ -47,7 +47,6 @@ const GOOGLE_ADS_TABLES = [
   'AssetGroup',
   'AssetGroupListingGroupFilter',
   'ShoppingProductStats',
-  'CampaignLocationTarget',
   'GeoStats',
 ];
 
