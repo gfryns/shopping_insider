@@ -39,7 +39,8 @@ _FAILED_STATE = 5
 _CANCELLED_STATE = 6
 
 _ADS_TABLES = ['Customer', 'Campaign', 'AdGroup', 'AdGroupCriterion',
-               'AssetGroup', 'AssetGroupListingGroupFilter', 'ShoppingProductStats',]
+               'AssetGroup', 'AssetGroupListingGroupFilter', 'ShoppingProductStats',
+               'CampaignLocationTarget', 'GeoStats',]
 
 
 class Error(Exception):

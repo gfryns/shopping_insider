@@ -36,6 +36,7 @@ WITH
       ProductView.unique_product_id,
       ProductMetricsView.customer_id,
       ProductView.target_country,
+      ANY_VALUE(ProductMetricsView.country_shares) AS country_shares,
       SUM(ProductMetricsView.impressions) AS impressions,
       SUM(ProductMetricsView.clicks) AS clicks,
       SUM(ProductMetricsView.cost) AS cost,
@@ -58,6 +59,11 @@ WITH
       unique_product_id,
       customer_id,
       target_country,
+      LAST_VALUE(country_shares) OVER(
+        PARTITION BY unique_product_id, customer_id, target_country
+        ORDER BY _DATA_DATE
+        ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
+      ) AS country_shares,
       IFNULL(SUM(impressions) OVER(
         PARTITION BY unique_product_id, customer_id, target_country
         ORDER BY _DATA_DATE
@@ -176,6 +182,7 @@ WITH
       MAX(ProductMetrics.ctr_30_days) AS ctr_30_days,
       MAX(ProductMetrics.days_has_impressions) AS days_has_impressions,
       MAX(ProductMetrics.days_has_clicks) AS days_has_clicks,
+      MAX(ProductMetrics.country_shares) AS country_shares,
       MAX(ProductView.description) AS description,
       MAX(ProductView.mobile_link) AS mobile_link,
       MAX(ProductView.image_link) AS image_link,

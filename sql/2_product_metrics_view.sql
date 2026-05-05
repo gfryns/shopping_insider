@@ -35,20 +35,52 @@ AS (
       FROM
         `{project_id}.{dataset}.language_codes`
     ),
+    -- 1. Calculate clicks per campaign per country
+    CampaignGeoClicks AS (
+      SELECT
+        campaign_id,
+        GeoTargets.country_code,
+        SUM(metrics_clicks) AS total_clicks,
+        SUM(SUM(metrics_clicks)) OVER(PARTITION BY campaign_id) AS campaign_total_clicks
+      FROM `{project_id}.{dataset}.ads_GeoStats_*` AS GeoStats
+      INNER JOIN GeoTargets
+        ON CAST(SPLIT(segments_geo_target_country, '/')[SAFE_OFFSET(1)] AS INT64) = GeoTargets.parent_id
+      WHERE _TABLE_SUFFIX IN ({external_customer_id})
+      GROUP BY 1, 2
+    ),
+    
+    -- 2. Find the winner country (most clicks)
+    CampaignWinnerCountry AS (
+      SELECT * EXCEPT(row_num)
+      FROM (
+        SELECT
+          campaign_id,
+          country_code AS winner_country,
+          ROW_NUMBER() OVER(PARTITION BY campaign_id ORDER BY total_clicks DESC) AS row_num
+        FROM CampaignGeoClicks
+      )
+      WHERE row_num = 1
+    ),
+    
+    -- 3. Create the share list string
+    CampaignGeoShare AS (
+      SELECT
+        campaign_id,
+        STRING_AGG(CONCAT(country_code, ': ', ROUND(SAFE_DIVIDE(total_clicks, campaign_total_clicks) * 100, 1), '%'), ', ') AS country_shares
+      FROM CampaignGeoClicks
+      GROUP BY 1
+    ),
+    
     ShoppingProductStats AS (
       SELECT
         _DATA_DATE,
         _LATEST_DATE,
         customer_id,
+        campaign_id,
         segments_product_merchant_id AS merchant_id,
         segments_product_channel AS channel,
         segments_product_item_id AS offer_id,
-        segments_product_country,
-        segments_product_language,
-        CAST(SPLIT(segments_product_country, '/')[SAFE_OFFSET(1)] AS INT64)
-          AS country_criterion_id,
-        CAST(SPLIT(segments_product_language, '/')[SAFE_OFFSET(1)] AS INT64)
-          AS language_criterion_id,
+        CAST(SPLIT(segments_product_language, '/')[SAFE_OFFSET(1)] AS INT64) AS language_criterion_id,
         metrics_impressions AS impressions,
         metrics_clicks AS clicks,
         metrics_cost_micros AS cost,
@@ -59,6 +91,7 @@ AS (
       WHERE
         _TABLE_SUFFIX IN ({external_customer_id})
     )
+    
   SELECT
     ShoppingProductStats._DATA_DATE,
     ShoppingProductStats._LATEST_DATE,
@@ -66,23 +99,21 @@ AS (
     ShoppingProductStats.merchant_id,
     ShoppingProductStats.channel,
     ShoppingProductStats.offer_id,
-    ShoppingProductStats.segments_product_country,
-    ShoppingProductStats.segments_product_language,
     LanguageCodes.language_code,
-    GeoTargets.country_code AS target_country,
+    -- Use campaign winner country if segments_product_country was null
+    COALESCE(CampaignWinnerCountry.winner_country, 'unknown') AS target_country,
+    ANY_VALUE(CampaignGeoShare.country_shares) AS country_shares,
     SUM(ShoppingProductStats.impressions) AS impressions,
     SUM(ShoppingProductStats.clicks) AS clicks,
     SAFE_DIVIDE(SUM(ShoppingProductStats.cost), 1e6) AS cost,
     SUM(ShoppingProductStats.conversions) AS conversions,
     SUM(ShoppingProductStats.conversions_value) AS conversions_value
-  FROM
-    ShoppingProductStats
-  LEFT JOIN
-    GeoTargets
-    ON
-      GeoTargets.parent_id = ShoppingProductStats.country_criterion_id
-  INNER JOIN
-    LanguageCodes
+  FROM ShoppingProductStats
+  LEFT JOIN LanguageCodes
     ON LanguageCodes.criterion_id = ShoppingProductStats.language_criterion_id
-  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+  LEFT JOIN CampaignWinnerCountry
+    ON CampaignWinnerCountry.campaign_id = ShoppingProductStats.campaign_id
+  LEFT JOIN CampaignGeoShare
+    ON CampaignGeoShare.campaign_id = ShoppingProductStats.campaign_id
+  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
 );
