@@ -164,7 +164,7 @@ const createOrUpdateDataTransfer = (name, resource) => {
   const rawCustomerIds = externalCustomerId ? externalCustomerId.split(',').map(id => id.trim().replace(/-/g, '')) : [];
 
   if (rawMerchantIds.length > 0 || rawCustomerIds.length > 0) {
-    const replacer = (match, tableBase) => {
+    const replacer = (match, tableBase, alias) => {
       let ids = [];
       if (tableBase.startsWith('ads_')) {
         ids = rawCustomerIds;
@@ -186,10 +186,15 @@ const createOrUpdateDataTransfer = (name, resource) => {
           );
         }
       }
-      return "(" + subqueries.join(" UNION ALL ") + ") AS " + tableBase + "_source";
+      
+      if (alias) {
+        return "(" + subqueries.join(" UNION ALL ") + ") AS " + alias;
+      } else {
+        return "(" + subqueries.join(" UNION ALL ") + ") AS " + tableBase + "_source";
+      }
     };
 
-    const regex = /`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`/g;
+    const regex = /`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`(?:\s+AS\s+([a-zA-Z0-9_]+))?/g;
     sqlScript = sqlScript.replace(regex, replacer);
   }
   

@@ -136,6 +136,7 @@ def configure_sql(sql_path: str, query_params: Dict[str, Any]) -> str:
 
   def replacer(match):
     table_base = match.group(1)
+    alias = match.group(2)
     
     # Determine which IDs to use based on table name prefix
     if table_base.startswith('ads_'):
@@ -156,9 +157,13 @@ def configure_sql(sql_path: str, query_params: Dict[str, Any]) -> str:
           subqueries.append(
               f"SELECT *, '{cid}' as _TABLE_SUFFIX FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`"
           )
-    return "(" + " UNION ALL ".join(subqueries) + ") AS " + table_base + "_source"
+    
+    if alias:
+      return "(" + " UNION ALL ".join(subqueries) + ") AS " + alias
+    else:
+      return "(" + " UNION ALL ".join(subqueries) + ") AS " + table_base + "_source"
 
-  sql_script = re.sub(r"`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`", replacer, sql_script)
+  sql_script = re.sub(r"`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`(?:\s+AS\s+([a-zA-Z0-9_]+))?", replacer, sql_script)
 
   return sql_script.format(**params)
 
