@@ -23,7 +23,7 @@ AS (
   WITH
     GeoTargets AS (
       SELECT DISTINCT
-        parent_id,
+        criteria_id,
         country_code
       FROM
         `{project_id}.{dataset}.geo_targets`
@@ -44,7 +44,7 @@ AS (
         SUM(SUM(metrics_clicks)) OVER(PARTITION BY campaign_id) AS campaign_total_clicks
       FROM `{project_id}.{dataset}.ads_GeoStats_*` AS GeoStats
       INNER JOIN GeoTargets
-        ON CAST(SPLIT(segments_geo_target_country, '/')[SAFE_OFFSET(1)] AS INT64) = GeoTargets.parent_id
+        ON GeoStats.geographic_view_country_criterion_id = GeoTargets.criteria_id
       WHERE _TABLE_SUFFIX IN ({external_customer_id})
       GROUP BY 1, 2
     ),
