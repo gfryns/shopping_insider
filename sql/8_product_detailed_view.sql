@@ -17,42 +17,117 @@
 CREATE OR REPLACE VIEW `{project_id}.{dataset}.product_detailed_view`
 AS
 WITH
-  ProductMetrics AS (
+  DeduplicatedMC AS (
+    SELECT * EXCEPT(row_num)
+    FROM (
+      SELECT
+        *,
+        ROW_NUMBER() OVER(
+          PARTITION BY _DATA_DATE, offer_id, channel, content_language
+          ORDER BY product_data_timestamp DESC
+        ) as row_num
+      FROM `{project_id}.{dataset}.product_view`
+    )
+    WHERE row_num = 1
+  ),
+  DailyMetrics AS (
     SELECT
-      ProductView._DATA_DATE,
+      ProductMetricsView._DATA_DATE,
       ProductView.unique_product_id,
       ProductMetricsView.customer_id,
       ProductView.target_country,
-      IFNULL(SUM(ProductMetricsView.impressions), 0) AS impressions_30_days,
-      IFNULL(SUM(ProductMetricsView.clicks), 0) AS clicks_30_days,
-      IFNULL(SUM(ProductMetricsView.cost), 0) AS cost_30_days,
-      IFNULL(SUM(ProductMetricsView.conversions), 0) AS conversions_30_days,
-      IFNULL(SUM(ProductMetricsView.conversions_value), 0) AS conversions_value_30_days,
-      COUNTIF(ProductMetricsView.impressions > 0) AS days_has_impressions,
-      COUNTIF(ProductMetricsView.clicks > 0) AS days_has_clicks,
-      SAFE_DIVIDE(
-        SUM(ProductMetricsView.cost),
-        SUM(ProductMetricsView.clicks)) AS cpc_30_days,
-      SAFE_DIVIDE(
-        SUM(ProductMetricsView.cost),
-        SUM(ProductMetricsView.impressions) * 1000) AS cpm_30_days,
-      SAFE_DIVIDE(
-        SUM(ProductMetricsView.clicks),
-        SUM(ProductMetricsView.impressions)) AS ctr_30_days
+      SUM(ProductMetricsView.impressions) AS impressions,
+      SUM(ProductMetricsView.clicks) AS clicks,
+      SUM(ProductMetricsView.cost) AS cost,
+      SUM(ProductMetricsView.conversions) AS conversions,
+      SUM(ProductMetricsView.conversions_value) AS conversions_value
     FROM
       `{project_id}.{dataset}.product_metrics_view` AS ProductMetricsView
-    INNER JOIN
-      `{project_id}.{dataset}.product_view` AS ProductView
+    LEFT JOIN
+      DeduplicatedMC AS ProductView
       ON
-        ProductMetricsView.merchant_id = ProductView.merchant_id
-        AND LOWER(ProductMetricsView.offer_id) = LOWER(ProductView.offer_id)
+        LOWER(ProductMetricsView.offer_id) = LOWER(ProductView.offer_id)
         AND LOWER(ProductMetricsView.channel) = LOWER(ProductView.channel)
         AND LOWER(ProductMetricsView.language_code) = LOWER(ProductView.content_language)
-        AND COALESCE(ProductMetricsView.segments_product_country, '') = COALESCE(ProductView.feed_label, '')
-        AND ProductMetricsView._DATA_DATE
-          BETWEEN DATE_SUB(ProductView._DATA_DATE, INTERVAL 30 DAY)
-          AND ProductView._DATA_DATE
+        AND ProductMetricsView._DATA_DATE = ProductView._DATA_DATE
     GROUP BY 1, 2, 3, 4
+  ),
+  ProductMetrics AS (
+    SELECT
+      _DATA_DATE,
+      unique_product_id,
+      customer_id,
+      target_country,
+      IFNULL(SUM(impressions) OVER(
+        PARTITION BY unique_product_id, customer_id, target_country
+        ORDER BY _DATA_DATE
+        RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+      ), 0) AS impressions_30_days,
+      IFNULL(SUM(clicks) OVER(
+        PARTITION BY unique_product_id, customer_id, target_country
+        ORDER BY _DATA_DATE
+        RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+      ), 0) AS clicks_30_days,
+      IFNULL(SUM(cost) OVER(
+        PARTITION BY unique_product_id, customer_id, target_country
+        ORDER BY _DATA_DATE
+        RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+      ), 0) AS cost_30_days,
+      IFNULL(SUM(conversions) OVER(
+        PARTITION BY unique_product_id, customer_id, target_country
+        ORDER BY _DATA_DATE
+        RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+      ), 0) AS conversions_30_days,
+      IFNULL(SUM(conversions_value) OVER(
+        PARTITION BY unique_product_id, customer_id, target_country
+        ORDER BY _DATA_DATE
+        RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+      ), 0) AS conversions_value_30_days,
+      COUNTIF(impressions > 0) OVER(
+        PARTITION BY unique_product_id, customer_id, target_country
+        ORDER BY _DATA_DATE
+        RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+      ) AS days_has_impressions,
+      COUNTIF(clicks > 0) OVER(
+        PARTITION BY unique_product_id, customer_id, target_country
+        ORDER BY _DATA_DATE
+        RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+      ) AS days_has_clicks,
+      SAFE_DIVIDE(
+        SUM(cost) OVER(
+          PARTITION BY unique_product_id, customer_id, target_country
+          ORDER BY _DATA_DATE
+          RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+        ),
+        SUM(clicks) OVER(
+          PARTITION BY unique_product_id, customer_id, target_country
+          ORDER BY _DATA_DATE
+          RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+        )) AS cpc_30_days,
+      SAFE_DIVIDE(
+        SUM(cost) OVER(
+          PARTITION BY unique_product_id, customer_id, target_country
+          ORDER BY _DATA_DATE
+          RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+        ),
+        SUM(impressions) OVER(
+          PARTITION BY unique_product_id, customer_id, target_country
+          ORDER BY _DATA_DATE
+          RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+        ) * 1000) AS cpm_30_days,
+      SAFE_DIVIDE(
+        SUM(clicks) OVER(
+          PARTITION BY unique_product_id, customer_id, target_country
+          ORDER BY _DATA_DATE
+          RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+        ),
+        SUM(impressions) OVER(
+          PARTITION BY unique_product_id, customer_id, target_country
+          ORDER BY _DATA_DATE
+          RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+        )) AS ctr_30_days
+    FROM
+      DailyMetrics
   ),
   ProductData AS (
     SELECT

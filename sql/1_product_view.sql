@@ -110,6 +110,7 @@ AS (
         Products.aggregator_id,
         Products.offer_id,
         Products.feed_label,
+        Products.product_data_timestamp,
         Products.title,
         Products.description,
         Products.link,
