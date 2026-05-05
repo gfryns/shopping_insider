@@ -25,7 +25,7 @@ AS (
       SELECT
         *, _PARTITIONTIME AS _PARTITIONTIME_COL
        FROM `{project_id}.{dataset}.Products_*`
-      WHERE _TABLE_SUFFIX IN ({merchant_id})
+      WHERE cid IN ({merchant_id})
     ),
     ApprovedOffer AS (
       SELECT DISTINCT
