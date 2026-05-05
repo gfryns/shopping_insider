@@ -61,70 +61,70 @@ WITH
       IFNULL(SUM(impressions) OVER(
         PARTITION BY unique_product_id, customer_id, target_country
         ORDER BY _DATA_DATE
-        RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+        ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
       ), 0) AS impressions_30_days,
       IFNULL(SUM(clicks) OVER(
         PARTITION BY unique_product_id, customer_id, target_country
         ORDER BY _DATA_DATE
-        RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+        ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
       ), 0) AS clicks_30_days,
       IFNULL(SUM(cost) OVER(
         PARTITION BY unique_product_id, customer_id, target_country
         ORDER BY _DATA_DATE
-        RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+        ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
       ), 0) AS cost_30_days,
       IFNULL(SUM(conversions) OVER(
         PARTITION BY unique_product_id, customer_id, target_country
         ORDER BY _DATA_DATE
-        RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+        ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
       ), 0) AS conversions_30_days,
       IFNULL(SUM(conversions_value) OVER(
         PARTITION BY unique_product_id, customer_id, target_country
         ORDER BY _DATA_DATE
-        RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+        ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
       ), 0) AS conversions_value_30_days,
       COUNTIF(impressions > 0) OVER(
         PARTITION BY unique_product_id, customer_id, target_country
         ORDER BY _DATA_DATE
-        RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+        ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
       ) AS days_has_impressions,
       COUNTIF(clicks > 0) OVER(
         PARTITION BY unique_product_id, customer_id, target_country
         ORDER BY _DATA_DATE
-        RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+        ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
       ) AS days_has_clicks,
       SAFE_DIVIDE(
         SUM(cost) OVER(
           PARTITION BY unique_product_id, customer_id, target_country
           ORDER BY _DATA_DATE
-          RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+          ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
         ),
         SUM(clicks) OVER(
           PARTITION BY unique_product_id, customer_id, target_country
           ORDER BY _DATA_DATE
-          RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+          ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
         )) AS cpc_30_days,
       SAFE_DIVIDE(
         SUM(cost) OVER(
           PARTITION BY unique_product_id, customer_id, target_country
           ORDER BY _DATA_DATE
-          RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+          ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
         ),
         SUM(impressions) OVER(
           PARTITION BY unique_product_id, customer_id, target_country
           ORDER BY _DATA_DATE
-          RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+          ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
         ) * 1000) AS cpm_30_days,
       SAFE_DIVIDE(
         SUM(clicks) OVER(
           PARTITION BY unique_product_id, customer_id, target_country
           ORDER BY _DATA_DATE
-          RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+          ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
         ),
         SUM(impressions) OVER(
           PARTITION BY unique_product_id, customer_id, target_country
           ORDER BY _DATA_DATE
-          RANGE BETWEEN INTERVAL 30 DAY PRECEDING AND CURRENT ROW
+          ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
         )) AS ctr_30_days
     FROM
       DailyMetrics
