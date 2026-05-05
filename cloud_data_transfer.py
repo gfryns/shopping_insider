@@ -227,6 +227,7 @@ class CloudDataTransferUtils(object):
     parameters = struct_pb2.Struct()
     parameters['merchant_id'] = merchant_id
     parameters['export_products'] = True
+    parameters['export_offer_targeting'] = True
     if enable_market_insights:
       parameters['export_price_competitiveness'] = True
       parameters['export_best_sellers_v2'] = True

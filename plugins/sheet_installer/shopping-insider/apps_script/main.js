@@ -87,6 +87,7 @@ const createOrUpdateDataTransfer = (name, resource) => {
         params: {
           merchant_id: mId,
           export_products: true,
+          export_offer_targeting: true,
           export_regional_inventories: false,
           export_local_inventories: false,
         }
