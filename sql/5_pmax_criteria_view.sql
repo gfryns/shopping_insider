@@ -185,7 +185,7 @@ AS (
       FROM
         `{project_id}.{dataset}.ads_ShoppingProductStats_*`
           AS ShoppingProductStats
-      INNER JOIN
+      LEFT JOIN
         `{project_id}.{dataset}.geo_targets` AS GeoTargets
         ON
           CAST(
