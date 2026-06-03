@@ -148,10 +148,8 @@ AS (
         Products.product_type,
         Products.additional_product_types,
         IF(ApprovedOffer.product_id IS NULL, 0, 1) AS is_approved,
-        CONCAT(CAST(Products.merchant_id AS STRING), '|', Products.product_id)
-          AS unique_product_id,
         CONCAT(CAST(Products.merchant_id AS STRING), '|', Products.offer_id)
-          AS unique_offer_id,
+          AS unique_product_id,
         IFNULL(SPLIT(Products.product_type, '>')[SAFE_OFFSET(0)], 'N/A') AS product_type_l1,
         IFNULL(SPLIT(Products.product_type, '>')[SAFE_OFFSET(1)], 'N/A') AS product_type_l2,
         IFNULL(SPLIT(Products.product_type, '>')[SAFE_OFFSET(2)], 'N/A') AS product_type_l3,
