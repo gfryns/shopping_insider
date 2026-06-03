@@ -30,13 +30,13 @@ AS (
     product_type_l5,
     target_country,
     channel,
-    COUNT(DISTINCT unique_product_id) AS total_products,
-    COUNT(DISTINCT IF(is_approved = 1, unique_product_id, NULL)) AS total_approved,
-    COUNT(DISTINCT IF(funnel_in_stock = 1, unique_product_id, NULL)) AS total_in_stock,
-    COUNT(DISTINCT IF(funnel_targeted = 1, unique_product_id, NULL)) AS total_targeted,
-    COUNT(DISTINCT IF(funnel_has_impression = 1, unique_product_id, NULL))
+    COUNT(DISTINCT unique_offer_id) AS total_products,
+    COUNT(DISTINCT IF(is_approved = 1, unique_offer_id, NULL)) AS total_approved,
+    COUNT(DISTINCT IF(funnel_in_stock = 1, unique_offer_id, NULL)) AS total_in_stock,
+    COUNT(DISTINCT IF(funnel_targeted = 1, unique_offer_id, NULL)) AS total_targeted,
+    COUNT(DISTINCT IF(funnel_has_impression = 1, unique_offer_id, NULL))
       AS total_products_with_impressions_in_30_days,
-    COUNT(DISTINCT IF(funnel_has_clicks = 1, unique_product_id, NULL))
+    COUNT(DISTINCT IF(funnel_has_clicks = 1, unique_offer_id, NULL))
       AS total_products_with_clicks_in_30_days,
     IFNULL(SUM(impressions_30_days), 0) AS total_impressions_30_days,
     IFNULL(SUM(clicks_30_days), 0) AS total_clicks_30_days,
