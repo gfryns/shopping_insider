@@ -143,6 +143,7 @@ WITH
       MAX(customer_view.customer_descriptive_name) AS account_display_name,
       ProductView.merchant_id AS sub_account_id,
       ProductView.unique_product_id,
+      MAX(ProductView.unique_offer_id) AS unique_offer_id,
       ProductView.target_country,
       MAX(ProductView.offer_id) AS offer_id,
       MAX(ProductView.channel) AS channel,
