@@ -98,73 +98,116 @@ def configure_sql(sql_path: str, query_params: Dict[str, Any]) -> str:
     sql_script: String representation of SQL script with parameters assigned.
   """
   sql_script = Path(sql_path).read_text()
-
-  params = {}
-  for param_key, param_value in query_params.items():
-    # If given value is list of strings (ex. 'a,b,c'), create a comma-separated
-    # list of quoted strings (ex. 'a', 'b', 'c') to pass to SQL IN operator.
-    if param_key in ('merchant_id', 'external_customer_id'):
-      if isinstance(param_value, str):
-        ids = [m.strip() for m in param_value.split(',')]
-      elif isinstance(param_value, (list, tuple)):
-        ids = [str(m) for m in param_value]
-      else:
-        ids = [str(param_value)]
-      params[param_key] = ", ".join(f"'{i}'" for i in ids)
-    elif isinstance(param_value, str) and ',' in param_value:
-      params[param_key] = tuple(param_value.split(','))
-    else:
-      params[param_key] = param_value
-
-  # Handle wildcard tables on views by generating UNION ALL or specific table references.
-  # This avoids "Views cannot be queried through prefix" error in BigQuery.
   import re
-  
+
   def get_raw_ids(param_key):
     if param_key not in query_params:
       return []
     val = query_params[param_key]
     if isinstance(val, str):
-      return [v.strip().replace('-', '') for v in val.split(',')]
+      return [v.strip().replace('-', '') for v in val.split(',') if v.strip()]
     elif isinstance(val, (list, tuple)):
-      return [str(v).replace('-', '') for v in val]
+      return [str(v).replace('-', '') for v in val if str(v).strip()]
     else:
       return [str(val).replace('-', '')]
 
   raw_customer_ids = get_raw_ids('external_customer_id')
   raw_merchant_ids = get_raw_ids('merchant_id')
 
-  def replacer(match):
-    table_base = match.group(1)
-    alias = match.group(2)
-    
-    # Determine which IDs to use based on table name prefix
-    if table_base.startswith('ads_'):
-      ids = raw_customer_ids
-    else:
+  match = re.search(r"CREATE OR REPLACE VIEW `\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)`", sql_script)
+  ids = []
+  gmc_views = ['product_view']
+  ads_views = ['product_metrics_view', 'customer_view', 'adgroup_criteria_view', 'pmax_criteria_view', 'criteria_view', 'targeted_products_view', 'product_detailed_view']
+
+  if match:
+    view_name = match.group(1)
+    if view_name == 'product_view':
       ids = raw_merchant_ids
-      
-    if not ids:
-      return match.group(0) # Return original if no IDs available
-      
-    subqueries = []
-    for cid in ids:
-        if not table_base.startswith('ads_'):
-          subqueries.append(
-              f"SELECT *, _PARTITIONTIME, '{cid}' as cid FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`"
-          )
-        else:
-          subqueries.append(
-              f"SELECT *, '{cid}' as _TABLE_SUFFIX FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`"
-          )
-    
-    if alias:
-      return "(" + " UNION ALL ".join(subqueries) + ") AS " + alias
     else:
-      return "(" + " UNION ALL ".join(subqueries) + ") AS " + table_base + "_source"
+      ids = raw_customer_ids if raw_customer_ids else raw_merchant_ids
+  else:
+    ids = raw_customer_ids if raw_customer_ids else raw_merchant_ids
 
-  sql_script = re.sub(r"`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`(?:\s+AS\s+([a-zA-Z0-9_]+))?", replacer, sql_script)
+  def format_params_for_account(target_merchant_id=None, target_customer_id=None):
+    params = {}
+    for param_key, param_value in query_params.items():
+      if param_key == 'merchant_id' and target_merchant_id:
+        params[param_key] = f"'{target_merchant_id}'"
+      elif param_key == 'external_customer_id' and target_customer_id:
+        params[param_key] = f"'{target_customer_id}'"
+      elif param_key in ('merchant_id', 'external_customer_id'):
+        if isinstance(param_value, str):
+          id_list = [m.strip() for m in param_value.split(',')]
+        elif isinstance(param_value, (list, tuple)):
+          id_list = [str(m) for m in param_value]
+        else:
+          id_list = [str(param_value)]
+        params[param_key] = ", ".join(f"'{i}'" for i in id_list)
+      elif isinstance(param_value, str) and ',' in param_value:
+        params[param_key] = tuple(param_value.split(','))
+      else:
+        params[param_key] = param_value
+    return params
 
+  if len(ids) > 0 and match:
+    scripts = []
+    for i, cid in enumerate(ids):
+      target_merchant_id = raw_merchant_ids[i % len(raw_merchant_ids)] if raw_merchant_ids else cid
+      target_customer_id = raw_customer_ids[i % len(raw_customer_ids)] if raw_customer_ids else cid
+      instance_script = sql_script
+
+      def account_replacer(m):
+        table_base = m.group(1)
+        alias = m.group(2)
+        target_id = target_customer_id if table_base.startswith('ads_') else target_merchant_id
+        if not target_id:
+          return m.group(0)
+        if not table_base.startswith('ads_'):
+          subquery = f"SELECT *, _PARTITIONTIME, '{target_id}' as cid FROM `{{project_id}}.{{dataset}}.{table_base}_{target_id}`"
+        else:
+          subquery = f"SELECT *, '{target_id}' as _TABLE_SUFFIX FROM `{{project_id}}.{{dataset}}.{table_base}_{target_id}`"
+        alias_name = alias or f"{table_base}_source"
+        return f"({subquery}) AS {alias_name}"
+
+      instance_script = re.sub(r"`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`(?:\s+AS\s+([a-zA-Z0-9_]+))?", account_replacer, instance_script)
+      instance_script = re.sub(r"CREATE OR REPLACE VIEW `\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)`", f"CREATE OR REPLACE VIEW `{{project_id}}.{{dataset}}.\\1_{cid}`", instance_script)
+
+      for v in gmc_views:
+        m_id = target_merchant_id or cid
+        instance_script = re.sub(rf"`\{{project_id\}}\.\{{dataset\}}\.{v}`", f"`{{project_id}}.{{dataset}}.{v}_{m_id}`", instance_script)
+      for v in ads_views:
+        c_id = target_customer_id or target_merchant_id or cid
+        instance_script = re.sub(rf"`\{{project_id\}}\.\{{dataset\}}\.{v}`", f"`{{project_id}}.{{dataset}}.{v}_{c_id}`", instance_script)
+
+      acct_params = format_params_for_account(target_merchant_id, target_customer_id)
+      scripts.append(instance_script.format(**acct_params).strip().rstrip(';'))
+
+    base_view_name = match.group(1)
+    union_queries = [f"SELECT * FROM `{{project_id}}.{{dataset}}.{base_view_name}_{cid}`" for cid in ids]
+    union_sql = f"CREATE OR REPLACE VIEW `{{project_id}}.{{dataset}}.{base_view_name}` AS\n" + "\nUNION ALL\n".join(union_queries)
+    union_params = format_params_for_account()
+    scripts.append(union_sql.format(**union_params))
+    return ";\n".join(scripts) + ";"
+
+  def fallback_replacer(m):
+    table_base = m.group(1)
+    alias = m.group(2)
+    target_ids = raw_customer_ids if table_base.startswith('ads_') else raw_merchant_ids
+    if not target_ids:
+      target_ids = raw_merchant_ids if table_base.startswith('ads_') else raw_customer_ids
+    if not target_ids:
+      return m.group(0)
+    subqueries = []
+    for cid in target_ids:
+      if not table_base.startswith('ads_'):
+        subqueries.append(f"SELECT *, _PARTITIONTIME, '{cid}' as cid FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`")
+      else:
+        subqueries.append(f"SELECT *, '{cid}' as _TABLE_SUFFIX FROM `{{project_id}}.{{dataset}}.{table_base}_{cid}`")
+    alias_name = alias or f"{table_base}_source"
+    return "(" + " UNION ALL ".join(subqueries) + f") AS {alias_name}"
+
+  sql_script = re.sub(r"`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`(?:\s+AS\s+([a-zA-Z0-9_]+))?", fallback_replacer, sql_script)
+  params = format_params_for_account()
   return sql_script.format(**params)
 
 

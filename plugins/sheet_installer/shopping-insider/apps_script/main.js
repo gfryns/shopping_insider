@@ -138,69 +138,19 @@ const createOrUpdateDataTransfer = (name, resource) => {
   const formattedParams = Object.assign({}, params);
   
   const merchantId = params.merchantId || params.merchant_id;
-  if (merchantId) {
-    const ids = merchantId.split(',').map(id => `'${id.trim()}'`);
-    const quotedList = `${ids.join(', ')}`;
-    formattedParams.merchant_id = quotedList;
-    formattedParams.merchantId = quotedList;
-  }
+  const rawMerchantIds = merchantId ? merchantId.split(',').map(id => id.trim()).filter(Boolean) : [];
   
   const externalCustomerId = params.externalCustomerId || params.external_customer_id;
-  if (externalCustomerId) {
-    const ids = externalCustomerId.split(',').map(id => `'${id.trim().replace(/-/g, '')}'`);
-    const quotedList = `${ids.join(', ')}`;
-    formattedParams.external_customer_id = quotedList;
-    formattedParams.externalCustomerId = quotedList;
-  }
+  const rawCustomerIds = externalCustomerId ? externalCustomerId.split(',').map(id => id.trim().replace(/-/g, '')).filter(Boolean) : [];
+  
   if (params.dataset) {
     formattedParams.dataset = params.dataset;
   }
   if (params.projectId) {
     formattedParams.project_id = params.projectId;
   }
-  
-  // Handle wildcard tables on views by generating UNION ALL or specific table references.
-  // This avoids "Views cannot be queried through prefix" error in BigQuery.
-  let sqlScript = sql;
-  const rawMerchantIds = merchantId ? merchantId.split(',').map(id => id.trim()) : [];
-  const rawCustomerIds = externalCustomerId ? externalCustomerId.split(',').map(id => id.trim().replace(/-/g, '')) : [];
 
-  if (rawMerchantIds.length > 0 || rawCustomerIds.length > 0) {
-    const replacer = (match, tableBase, alias) => {
-      let ids = [];
-      if (tableBase.startsWith('ads_')) {
-        ids = rawCustomerIds;
-      } else {
-        ids = rawMerchantIds;
-      }
-      
-      if (ids.length === 0) return match;
-      
-      const subqueries = [];
-      for (const cid of ids) {
-        if (!tableBase.startsWith('ads_')) {
-          subqueries.push(
-              `SELECT *, _PARTITIONTIME, '${cid}' as cid FROM \`${params.projectId}.${params.dataset}.${tableBase}_${cid}\``
-          );
-        } else {
-          subqueries.push(
-              `SELECT *, '${cid}' as _TABLE_SUFFIX FROM \`${params.projectId}.${params.dataset}.${tableBase}_${cid}\``
-          );
-        }
-      }
-      
-      if (alias) {
-        return "(" + subqueries.join(" UNION ALL ") + ") AS " + alias;
-      } else {
-        return "(" + subqueries.join(" UNION ALL ") + ") AS " + tableBase + "_source";
-      }
-    };
-
-    const regex = /`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`(?:\s+AS\s+([a-zA-Z0-9_]+))?/g;
-    sqlScript = sqlScript.replace(regex, replacer);
-  }
-  
-  const match = sqlScript.match(/CREATE OR REPLACE VIEW `\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)`/);
+  const match = sql.match(/CREATE OR REPLACE VIEW `\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)`/);
   let ids = [];
   let viewName = '';
   const gmcViews = ['product_view'];
@@ -217,47 +167,114 @@ const createOrUpdateDataTransfer = (name, resource) => {
     ids = rawCustomerIds.length > 0 ? rawCustomerIds : rawMerchantIds;
   }
 
-  if (ids.length > 0) {
+  // Helper function to build SQL for a specific account
+  const buildAccountSql = (script, targetMerchantId, targetCustomerId, cidSuffix) => {
+    let instanceScript = script;
+    
+    // Replace wildcard tables for ONLY this specific account
+    const replacer = (m, tableBase, alias) => {
+      const targetId = tableBase.startsWith('ads_') ? targetCustomerId : targetMerchantId;
+      if (!targetId) return m;
+      
+      let subquery = '';
+      if (!tableBase.startsWith('ads_')) {
+        subquery = `SELECT *, _PARTITIONTIME, '${targetId}' as cid FROM \`${params.projectId}.${params.dataset}.${tableBase}_${targetId}\``;
+      } else {
+        subquery = `SELECT *, '${targetId}' as _TABLE_SUFFIX FROM \`${params.projectId}.${params.dataset}.${tableBase}_${targetId}\``;
+      }
+      const aliasName = alias || `${tableBase}_source`;
+      return `(${subquery}) AS ${aliasName}`;
+    };
+
+    const regex = /`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`(?:\s+AS\s+([a-zA-Z0-9_]+))?/g;
+    instanceScript = instanceScript.replace(regex, replacer);
+
+    // If cidSuffix is provided, replace CREATE VIEW name and downstream view references
+    if (cidSuffix) {
+      instanceScript = instanceScript.replace(/CREATE OR REPLACE VIEW `\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)`/g, `CREATE OR REPLACE VIEW \`{project_id}.{dataset}.$1_${cidSuffix}\``);
+      
+      for (const v of gmcViews) {
+        const viewRegex = new RegExp('`\\{project_id\\}\\.\\{dataset\\}\\.' + v + '`', 'g');
+        const mId = targetMerchantId || cidSuffix;
+        instanceScript = instanceScript.replace(viewRegex, `\`{project_id}.{dataset}.${v}_${mId}\``);
+      }
+      for (const v of adsViews) {
+        const viewRegex = new RegExp('`\\{project_id\\}\\.\\{dataset\\}\\.' + v + '`', 'g');
+        const cId = targetCustomerId || targetMerchantId || cidSuffix;
+        instanceScript = instanceScript.replace(viewRegex, `\`{project_id}.{dataset}.${v}_${cId}\``);
+      }
+    }
+
+    // Prepare parameters for ONLY this specific account
+    const accountParams = Object.assign({}, formattedParams);
+    if (targetMerchantId) {
+      accountParams.merchant_id = `'${targetMerchantId}'`;
+      accountParams.merchantId = `'${targetMerchantId}'`;
+    }
+    if (targetCustomerId) {
+      accountParams.external_customer_id = `'${targetCustomerId}'`;
+      accountParams.externalCustomerId = `'${targetCustomerId}'`;
+    }
+    
+    return replacePythonStyleParameters(instanceScript, accountParams);
+  };
+
+  // If we have multiple accounts (or if ids is populated and it's a VIEW creation), generate suffixed views + union
+  if (ids.length > 0 && match) {
     const scripts = [];
     
-    // 1. Create suffixed views for each account
+    // 1. Create suffixed view for each account
     for (let i = 0; i < ids.length; i++) {
       const cid = ids[i];
-      let instanceScript = sqlScript;
+      const targetMerchantId = rawMerchantIds.length > 0 ? rawMerchantIds[i % rawMerchantIds.length] : cid;
+      const targetCustomerId = rawCustomerIds.length > 0 ? rawCustomerIds[i % rawCustomerIds.length] : cid;
       
-      // Replace view name in CREATE VIEW
-      instanceScript = instanceScript.replace(/CREATE OR REPLACE VIEW `\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)`/g, `CREATE OR REPLACE VIEW \`{project_id}.{dataset}.$1_${cid}\``);
-      
-      // Replace references to GMC views
-      for (const view of gmcViews) {
-        const viewRegex = new RegExp('`\\{project_id\\}\\.\\{dataset\\}\\.' + view + '`', 'g');
-        const targetId = rawMerchantIds.length > 0 ? rawMerchantIds[i % rawMerchantIds.length] : cid;
-        instanceScript = instanceScript.replace(viewRegex, `\`{project_id}.{dataset}.${view}_${targetId}\``);
-      }
-      
-      // Replace references to Ads views
-      for (const view of adsViews) {
-        const viewRegex = new RegExp('`\\{project_id\\}\\.\\{dataset\\}\\.' + view + '`', 'g');
-        const targetId = rawCustomerIds[i] || cid;
-        instanceScript = instanceScript.replace(viewRegex, `\`{project_id}.{dataset}.${view}_${targetId}\``);
-      }
-      
-      scripts.push(instanceScript.trim().replace(/;$/, ''));
+      const accountSql = buildAccountSql(sql, targetMerchantId, targetCustomerId, cid);
+      scripts.push(accountSql.trim().replace(/;$/, ''));
     }
     
-    // 2. Create a combined unsuffixed view as UNION ALL of the suffixed views
-    const match = sqlScript.match(/CREATE OR REPLACE VIEW `\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)`/);
-    if (match) {
-      const baseViewName = match[1];
-      const unionQueries = ids.map(cid => `SELECT * FROM \`{project_id}.{dataset}.${baseViewName}_${cid}\``);
-      const unionSql = `CREATE OR REPLACE VIEW \`{project_id}.{dataset}.${baseViewName}\` AS\n${unionQueries.join("\nUNION ALL\n")}`;
-      scripts.push(unionSql);
-    }
+    // 2. Create combined unsuffixed view as UNION ALL of suffixed views
+    const baseViewName = match[1];
+    const unionQueries = ids.map(cid => `SELECT * FROM \`${params.projectId}.${params.dataset}.${baseViewName}_${cid}\``);
+    const unionSql = `CREATE OR REPLACE VIEW \`${params.projectId}.${params.dataset}.${baseViewName}\` AS\n${unionQueries.join("\nUNION ALL\n")}`;
+    scripts.push(unionSql);
     
-    sqlScript = scripts.join(";\n") + ";";
+    return scripts.join(";\n") + ";";
+  }
+
+  // Fallback for non-view SQL (like workflows or procedures) where we want all accounts in one query
+  let fallbackSql = sql;
+  if (rawMerchantIds.length > 0 || rawCustomerIds.length > 0) {
+    const replacer = (m, tableBase, alias) => {
+      const targetIds = tableBase.startsWith('ads_') ? (rawCustomerIds.length > 0 ? rawCustomerIds : rawMerchantIds) : (rawMerchantIds.length > 0 ? rawMerchantIds : rawCustomerIds);
+      if (targetIds.length === 0) return m;
+      
+      const subqueries = targetIds.map(cid => {
+        if (!tableBase.startsWith('ads_')) {
+          return `SELECT *, _PARTITIONTIME, '${cid}' as cid FROM \`${params.projectId}.${params.dataset}.${tableBase}_${cid}\``;
+        } else {
+          return `SELECT *, '${cid}' as _TABLE_SUFFIX FROM \`${params.projectId}.${params.dataset}.${tableBase}_${cid}\``;
+        }
+      });
+      
+      const aliasName = alias || `${tableBase}_source`;
+      return `(${subqueries.join(" UNION ALL ")}) AS ${aliasName}`;
+    };
+
+    const regex = /`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`(?:\s+AS\s+([a-zA-Z0-9_]+))?/g;
+    fallbackSql = fallbackSql.replace(regex, replacer);
   }
   
-  return replacePythonStyleParameters(sqlScript, formattedParams);
+  if (rawMerchantIds.length > 0) {
+    formattedParams.merchant_id = rawMerchantIds.map(id => `'${id}'`).join(', ');
+    formattedParams.merchantId = formattedParams.merchant_id;
+  }
+  if (rawCustomerIds.length > 0) {
+    formattedParams.external_customer_id = rawCustomerIds.map(id => `'${id}'`).join(', ');
+    formattedParams.externalCustomerId = formattedParams.external_customer_id;
+  }
+
+  return replacePythonStyleParameters(fallbackSql, formattedParams);
 }
 
 /**
