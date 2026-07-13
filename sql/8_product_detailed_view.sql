@@ -23,7 +23,7 @@ WITH
       SELECT
         *,
         ROW_NUMBER() OVER(
-          PARTITION BY _DATA_DATE, offer_id, channel, content_language
+          PARTITION BY _DATA_DATE, offer_id, channel, content_language, target_country, destination_name
           ORDER BY product_data_timestamp DESC
         ) as row_num
       FROM `{project_id}.{dataset}.product_view`
@@ -36,6 +36,7 @@ WITH
       ProductView.unique_product_id,
       ProductMetricsView.customer_id,
       ProductView.target_country,
+      ProductView.destination_name,
       ANY_VALUE(ProductMetricsView.country_shares) AS country_shares,
       SUM(ProductMetricsView.impressions) AS impressions,
       SUM(ProductMetricsView.clicks) AS clicks,
@@ -51,7 +52,9 @@ WITH
         AND LOWER(ProductMetricsView.channel) = LOWER(ProductView.channel)
         AND LOWER(ProductMetricsView.language_code) = LOWER(ProductView.content_language)
         AND ProductMetricsView._DATA_DATE = ProductView._DATA_DATE
-    GROUP BY 1, 2, 3, 4
+        AND LOWER(ProductMetricsView.target_country) = LOWER(ProductView.target_country)
+        AND ProductView.destination_name = 'Shopping'
+    GROUP BY 1, 2, 3, 4, 5
   ),
   ProductMetrics AS (
     SELECT
@@ -59,76 +62,77 @@ WITH
       unique_product_id,
       customer_id,
       target_country,
+      destination_name,
       LAST_VALUE(country_shares) OVER(
-        PARTITION BY unique_product_id, customer_id, target_country
+        PARTITION BY unique_product_id, customer_id, target_country, destination_name
         ORDER BY _DATA_DATE
         ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
       ) AS country_shares,
       IFNULL(SUM(impressions) OVER(
-        PARTITION BY unique_product_id, customer_id, target_country
+        PARTITION BY unique_product_id, customer_id, target_country, destination_name
         ORDER BY _DATA_DATE
         ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
       ), 0) AS impressions_30_days,
       IFNULL(SUM(clicks) OVER(
-        PARTITION BY unique_product_id, customer_id, target_country
+        PARTITION BY unique_product_id, customer_id, target_country, destination_name
         ORDER BY _DATA_DATE
         ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
       ), 0) AS clicks_30_days,
       IFNULL(SUM(cost) OVER(
-        PARTITION BY unique_product_id, customer_id, target_country
+        PARTITION BY unique_product_id, customer_id, target_country, destination_name
         ORDER BY _DATA_DATE
         ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
       ), 0) AS cost_30_days,
       IFNULL(SUM(conversions) OVER(
-        PARTITION BY unique_product_id, customer_id, target_country
+        PARTITION BY unique_product_id, customer_id, target_country, destination_name
         ORDER BY _DATA_DATE
         ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
       ), 0) AS conversions_30_days,
       IFNULL(SUM(conversions_value) OVER(
-        PARTITION BY unique_product_id, customer_id, target_country
+        PARTITION BY unique_product_id, customer_id, target_country, destination_name
         ORDER BY _DATA_DATE
         ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
       ), 0) AS conversions_value_30_days,
       COUNTIF(impressions > 0) OVER(
-        PARTITION BY unique_product_id, customer_id, target_country
+        PARTITION BY unique_product_id, customer_id, target_country, destination_name
         ORDER BY _DATA_DATE
         ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
       ) AS days_has_impressions,
       COUNTIF(clicks > 0) OVER(
-        PARTITION BY unique_product_id, customer_id, target_country
+        PARTITION BY unique_product_id, customer_id, target_country, destination_name
         ORDER BY _DATA_DATE
         ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
       ) AS days_has_clicks,
       SAFE_DIVIDE(
         SUM(cost) OVER(
-          PARTITION BY unique_product_id, customer_id, target_country
+          PARTITION BY unique_product_id, customer_id, target_country, destination_name
           ORDER BY _DATA_DATE
           ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
         ),
         SUM(clicks) OVER(
-          PARTITION BY unique_product_id, customer_id, target_country
+          PARTITION BY unique_product_id, customer_id, target_country, destination_name
           ORDER BY _DATA_DATE
           ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
         )) AS cpc_30_days,
       SAFE_DIVIDE(
         SUM(cost) OVER(
-          PARTITION BY unique_product_id, customer_id, target_country
+          PARTITION BY unique_product_id, customer_id, target_country, destination_name
           ORDER BY _DATA_DATE
           ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
         ),
         SUM(impressions) OVER(
-          PARTITION BY unique_product_id, customer_id, target_country
+          PARTITION BY unique_product_id, customer_id, target_country, destination_name
           ORDER BY _DATA_DATE
           ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
         ) * 1000) AS cpm_30_days,
       SAFE_DIVIDE(
         SUM(clicks) OVER(
-          PARTITION BY unique_product_id, customer_id, target_country
+          PARTITION BY unique_product_id, customer_id, target_country, destination_name
           ORDER BY _DATA_DATE
           ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
         ),
         SUM(impressions) OVER(
-          PARTITION BY unique_product_id, customer_id, target_country
+          PARTITION BY unique_product_id, customer_id, target_country, destination_name
           ORDER BY _DATA_DATE
           ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
         )) AS ctr_30_days
@@ -145,6 +149,7 @@ WITH
       ProductView.unique_product_id,
       MAX(ProductView.unique_offer_id) AS unique_offer_id,
       ProductView.target_country,
+      ProductView.destination_name,
       MAX(ProductView.offer_id) AS offer_id,
       MAX(ProductView.channel) AS channel,
       MAX(ProductView.in_stock) AS in_stock,
@@ -223,6 +228,7 @@ WITH
         ProductMetrics._DATA_DATE = ProductView._DATA_DATE
         AND ProductMetrics.unique_product_id = ProductView.unique_product_id
         AND ProductMetrics.target_country = ProductView.target_country
+        AND ProductMetrics.destination_name = ProductView.destination_name
     LEFT JOIN
       `{project_id}.{dataset}.customer_view` AS customer_view
       ON
@@ -241,7 +247,8 @@ WITH
       account_id,
       sub_account_id,
       unique_product_id,
-      target_country
+      target_country,
+      destination_name
   )
 SELECT
   * EXCEPT (

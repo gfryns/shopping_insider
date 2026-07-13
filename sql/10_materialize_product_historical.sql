@@ -29,6 +29,7 @@ AS (
     product_type_l4,
     product_type_l5,
     target_country,
+    destination_name,
     channel,
     COUNT(DISTINCT unique_product_id) AS total_products,
     COUNT(DISTINCT unique_offer_id) AS total_offers,
@@ -53,6 +54,6 @@ AS (
     `{project_id}.{dataset}.product_detailed_view`
   WHERE
     _DATA_DATE >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9
+  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
 );
 END;

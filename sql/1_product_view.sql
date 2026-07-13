@@ -51,6 +51,7 @@ AS (
         Products.additional_image_links,
         Products.content_language,
         dest_country AS target_country,
+        destination.destination_name AS destination_name,
         Products.channel,
         Products.expiration_date,
         Products.google_expiration_date,
@@ -76,7 +77,7 @@ AS (
         Products.google_product_category_path,
         Products.product_type,
         Products.additional_product_types,
-        IF(EXISTS(SELECT 1 FROM UNNEST(Products.destinations) AS d, UNNEST(d.approved_countries) AS ac WHERE ac = dest_country), 1, 0) AS is_approved,
+        IF(dest_country IN UNNEST(destination.approved_countries), 1, 0) AS is_approved,
         CONCAT(CAST(Products.merchant_id AS STRING), '|', Products.product_id)
           AS unique_product_id,
         CONCAT(CAST(Products.merchant_id AS STRING), '|', Products.offer_id)
@@ -103,14 +104,10 @@ AS (
         Products.issues
       FROM
         Products,
-        LatestDate
-      LEFT JOIN UNNEST(
-        IF(
-          EXISTS(SELECT 1 FROM UNNEST(Products.destinations) AS d, UNNEST(ARRAY_CONCAT(d.approved_countries, d.pending_countries, d.disapproved_countries))),
-          ARRAY(SELECT DISTINCT c FROM UNNEST(Products.destinations) AS d, UNNEST(ARRAY_CONCAT(d.approved_countries, d.pending_countries, d.disapproved_countries)) AS c),
-          [COALESCE(SPLIT(Products.product_id, ':')[SAFE_OFFSET(2)], Products.feed_label, 'unknown')]
-        )
-      ) AS dest_country
+        LatestDate,
+        UNNEST(Products.destinations) AS destination,
+        UNNEST(ARRAY_CONCAT(destination.approved_countries, destination.pending_countries, destination.disapproved_countries)) AS dest_country
+      WHERE destination.destination_name IS NOT NULL
     )
   SELECT
     ProductStatus.* EXCEPT(issues),
