@@ -51,7 +51,7 @@ AS (
         Products.additional_image_links,
         Products.content_language,
         dest_country AS target_country,
-        destination.destination_name AS destination_name,
+        destination.name AS destination_name,
         Products.channel,
         Products.expiration_date,
         Products.google_expiration_date,
