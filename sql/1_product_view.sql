@@ -107,7 +107,7 @@ AS (
         LatestDate,
         UNNEST(Products.destinations) AS destination,
         UNNEST(ARRAY_CONCAT(destination.approved_countries, destination.pending_countries, destination.disapproved_countries)) AS dest_country
-      WHERE destination.destination_name IS NOT NULL
+      WHERE destination.name IS NOT NULL
     )
   SELECT
     ProductStatus.* EXCEPT(issues),
