@@ -114,28 +114,10 @@ def configure_sql(sql_path: str, query_params: Dict[str, Any]) -> str:
   raw_customer_ids = get_raw_ids('external_customer_id')
   raw_merchant_ids = get_raw_ids('merchant_id')
 
-  match = re.search(r"CREATE OR REPLACE VIEW `\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)`", sql_script)
-  ids = []
-  gmc_views = ['product_view']
-  ads_views = ['product_metrics_view', 'customer_view', 'adgroup_criteria_view', 'pmax_criteria_view', 'criteria_view', 'targeted_products_view', 'product_detailed_view']
-
-  if match:
-    view_name = match.group(1)
-    if view_name == 'product_view':
-      ids = raw_merchant_ids
-    else:
-      ids = raw_customer_ids if raw_customer_ids else raw_merchant_ids
-  else:
-    ids = raw_customer_ids if raw_customer_ids else raw_merchant_ids
-
-  def format_params_for_account(target_merchant_id=None, target_customer_id=None):
+  def format_params_for_account():
     params = {}
     for param_key, param_value in query_params.items():
-      if param_key == 'merchant_id' and target_merchant_id:
-        params[param_key] = f"'{target_merchant_id}'"
-      elif param_key == 'external_customer_id' and target_customer_id:
-        params[param_key] = f"'{target_customer_id}'"
-      elif param_key in ('merchant_id', 'external_customer_id'):
+      if param_key in ('merchant_id', 'external_customer_id'):
         if isinstance(param_value, str):
           id_list = [m.strip() for m in param_value.split(',')]
         elif isinstance(param_value, (list, tuple)):
@@ -149,47 +131,7 @@ def configure_sql(sql_path: str, query_params: Dict[str, Any]) -> str:
         params[param_key] = param_value
     return params
 
-  if len(ids) > 0 and match:
-    scripts = []
-    for i, cid in enumerate(ids):
-      target_merchant_id = raw_merchant_ids[i % len(raw_merchant_ids)] if raw_merchant_ids else cid
-      target_customer_id = raw_customer_ids[i % len(raw_customer_ids)] if raw_customer_ids else cid
-      instance_script = sql_script
-
-      def account_replacer(m):
-        table_base = m.group(1)
-        alias = m.group(2)
-        target_id = target_customer_id if table_base.startswith('ads_') else target_merchant_id
-        if not target_id:
-          return m.group(0)
-        if not table_base.startswith('ads_'):
-          subquery = f"SELECT *, _PARTITIONTIME, '{target_id}' as cid FROM `{{project_id}}.{{dataset}}.{table_base}_{target_id}`"
-        else:
-          subquery = f"SELECT *, '{target_id}' as _TABLE_SUFFIX FROM `{{project_id}}.{{dataset}}.{table_base}_{target_id}`"
-        alias_name = alias or f"{table_base}_source"
-        return f"({subquery}) AS {alias_name}"
-
-      instance_script = re.sub(r"`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`(?:\s+AS\s+([a-zA-Z0-9_]+))?", account_replacer, instance_script)
-      instance_script = re.sub(r"CREATE OR REPLACE VIEW `\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)`", f"CREATE OR REPLACE VIEW `{{project_id}}.{{dataset}}.\\1_{cid}`", instance_script)
-
-      for v in gmc_views:
-        m_id = target_merchant_id or cid
-        instance_script = re.sub(rf"`\{{project_id\}}\.\{{dataset\}}\.{v}`", f"`{{project_id}}.{{dataset}}.{v}_{m_id}`", instance_script)
-      for v in ads_views:
-        c_id = target_customer_id or target_merchant_id or cid
-        instance_script = re.sub(rf"`\{{project_id\}}\.\{{dataset\}}\.{v}`", f"`{{project_id}}.{{dataset}}.{v}_{c_id}`", instance_script)
-
-      acct_params = format_params_for_account(target_merchant_id, target_customer_id)
-      scripts.append(instance_script.format(**acct_params).strip().rstrip(';'))
-
-    base_view_name = match.group(1)
-    union_queries = [f"SELECT * FROM `{{project_id}}.{{dataset}}.{base_view_name}_{cid}`" for cid in ids]
-    union_sql = f"CREATE OR REPLACE VIEW `{{project_id}}.{{dataset}}.{base_view_name}` AS\n" + "\nUNION ALL\n".join(union_queries)
-    union_params = format_params_for_account()
-    scripts.append(union_sql.format(**union_params))
-    return ";\n".join(scripts) + ";"
-
-  def fallback_replacer(m):
+  def table_replacer(m):
     table_base = m.group(1)
     alias = m.group(2)
     target_ids = raw_customer_ids if table_base.startswith('ads_') else raw_merchant_ids
@@ -206,7 +148,7 @@ def configure_sql(sql_path: str, query_params: Dict[str, Any]) -> str:
     alias_name = alias or f"{table_base}_source"
     return "(" + " UNION ALL ".join(subqueries) + f") AS {alias_name}"
 
-  sql_script = re.sub(r"`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`(?:\s+AS\s+([a-zA-Z0-9_]+))?", fallback_replacer, sql_script)
+  sql_script = re.sub(r"`\{project_id\}\.\{dataset\}\.([a-zA-Z0-9_]+)_\*`(?:\s+AS\s+([a-zA-Z0-9_]+))?", table_replacer, sql_script)
   params = format_params_for_account()
   return sql_script.format(**params)
 
